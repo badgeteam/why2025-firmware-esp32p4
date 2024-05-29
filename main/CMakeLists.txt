@@ -1,2 +1,2 @@
-idf_component_register(SRCS "why2025-firmware-esp32p4.c"
+idf_component_register(SRCS "main.c"
                     INCLUDE_DIRS ".")
