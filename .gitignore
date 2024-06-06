@@ -8,4 +8,5 @@ sdkconfig.old
 tools/__pycache__
 .cache
 esp-idf
+esp-idf-tools
 dependencies.lock
