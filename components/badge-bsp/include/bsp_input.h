@@ -3,6 +3,10 @@
 
 #pragma once
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
 
 
 // Badge buttons.
@@ -16,6 +20,10 @@ typedef enum {
     BSP_INPUT_UP,
     // Keyboard/DPAD down.
     BSP_INPUT_DOWN,
+    // Navigate to the previous element/option.
+    BSP_INPUT_PREV,
+    // Navigate to the next element/option.
+    BSP_INPUT_NEXT,
 
     // A / Accept button.
     BSP_INPUT_ACCEPT,
@@ -233,3 +241,27 @@ typedef enum {
     // Keyboard scroll lock.
     BSP_INPUT_SCROLL_LK,
 } bsp_input_t;
+
+// Types of input event.
+typedef enum {
+    // Button pressed.
+    BSP_INPUT_EVENT_PRESS,
+    // Button held down.
+    BSP_INPUT_EVENT_HOLD,
+    // Button released.
+    BSP_INPUT_EVENT_RELEASE,
+} bsp_input_event_type_t;
+
+// Input event.
+typedef struct {
+    // Input event type.
+    bsp_input_event_type_t type;
+    // Input device ID.
+    uint32_t               dev_id;
+    // Input interpreted as navigation.
+    bsp_input_t            nav_input;
+    // Input value.
+    bsp_input_t            input;
+    // Raw input value or keyboard scan code.
+    int                    raw_input;
+} bsp_input_event_t;

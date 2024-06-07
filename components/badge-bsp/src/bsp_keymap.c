@@ -1,9 +1,9 @@
 
 // SPDX-License-Identifier: MIT
 
-#include "keymap.h"
+#include "bsp_keymap.h"
 
-#include "input.h"
+#include "bsp_input.h"
 
 
 // WHY2025 badge built-in keyboard.
