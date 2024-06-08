@@ -11,7 +11,9 @@
 #include <esp_ota_ops.h>
 #include <esp_system.h>
 
+#include "bsp/why2025_coproc.h"
 
+extern void display_test();
 
 void display_version() {
     esp_app_desc_t const *app_description = esp_app_get_description();
@@ -22,4 +24,6 @@ void display_version() {
 void app_main(void) {
     display_version();
     bsp_init();
+    ch32_set_display_backlight(255);
+    display_test();
 }
