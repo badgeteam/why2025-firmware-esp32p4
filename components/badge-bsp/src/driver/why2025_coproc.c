@@ -55,7 +55,7 @@ static void ch32_thread() {
         esp_err_t res = i2c_master_write_read_device(
             BSP_I2CINT_NUM,
             BSP_CH32_ADDR,
-            (uint8_t[]){0},
+            (uint8_t[]){2}, // I2C_REG_KEYBOARD_0
             1,
             buttons,
             9,
@@ -87,4 +87,27 @@ IRAM_ATTR static void ch32_isr(void *arg) {
     gpio_intr_disable(BSP_CH32_IRQ_PIN);
     xSemaphoreGiveFromISR(ch32_int_semaphore, NULL);
     portYIELD_FROM_ISR();
+}
+
+esp_err_t ch32_set_display_backlight(uint16_t value) {
+    uint8_t buffer[3];
+    buffer[0] = 11; // I2C_REG_DISPLAY_BACKLIGHT_0
+    buffer[1] = value & 0xFF;
+    buffer[2] = value >> 8;
+    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+}
+
+esp_err_t ch32_set_keyboard_backlight(uint16_t value) {
+    uint8_t buffer[3];
+    buffer[0] = 13; // I2C_REG_KEYBOARD_BACKLIGHT_0
+    buffer[1] = value & 0xFF;
+    buffer[2] = value >> 8;
+    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+}
+
+esp_err_t bsp_c6_control(bool enable, bool boot) {
+    uint8_t buffer[2];
+    buffer[0] = 17; // I2C_REG_RADIO_CONTROL
+    buffer[1] = (enable & 1) | ((boot & 1) << 1);
+    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
 }

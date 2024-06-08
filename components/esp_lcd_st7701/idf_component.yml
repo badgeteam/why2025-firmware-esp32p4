@@ -1,0 +1,6 @@
+dependencies:
+  idf:
+    version: '>=5.3'
+description: ESP LCD ST7701 (MIPI DSI)
+url: https://github.com/badgeteam
+version: 0.2.0
