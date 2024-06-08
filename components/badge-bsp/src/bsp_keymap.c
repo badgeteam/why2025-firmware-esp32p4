@@ -12,7 +12,7 @@ keymap_t const bsp_keymap_why2025 = {
     .max_scancode = 72,
     // Scancode = row*8+col.
     // clang-format off
-    .keymap       = (uint16_t[]){
+    .keymap       = (uint16_t const[]){
             /*       col 0       */ /*       col 1       */ /*       col 2       */ /*       col 3       */
             /*       col 4       */ /*       col 5       */ /*       col 6       */ /*       col 7       */
 /* row 0 */ BSP_INPUT_ESCAPE,       BSP_INPUT_F1,           BSP_INPUT_F2,           BSP_INPUT_F3,
