@@ -12,10 +12,19 @@ static QueueHandle_t queue;
 
 extern void bsp_platform_init();
 
+// Device register/unregister mutex.
+extern SemaphoreHandle_t bsp_dev_register_mtx;
+// Devide table mutex.
+extern SemaphoreHandle_t bsp_dev_mtx;
+
 
 
 // Initialise the BSP, should be called early on in `app_main`.
 void bsp_init() {
+    bsp_dev_register_mtx = xSemaphoreCreateBinary();
+    xSemaphoreGive(bsp_dev_register_mtx);
+    bsp_dev_mtx = xSemaphoreCreateBinary();
+    xSemaphoreGive(bsp_dev_mtx);
     queue = xQueueCreate(16, sizeof(bsp_event_t));
     bsp_platform_init();
 }
