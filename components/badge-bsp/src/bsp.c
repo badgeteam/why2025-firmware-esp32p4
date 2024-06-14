@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "driver/gpio.h"
 
 static char const    TAG[] = "bsp";
 static QueueHandle_t queue;
@@ -16,6 +17,7 @@ extern void bsp_platform_init();
 
 // Initialise the BSP, should be called early on in `app_main`.
 void bsp_init() {
+    gpio_install_isr_service(0);
     queue = xQueueCreate(16, sizeof(bsp_event_t));
     bsp_platform_init();
 }

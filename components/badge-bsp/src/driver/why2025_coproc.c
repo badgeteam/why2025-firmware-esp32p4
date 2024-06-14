@@ -68,8 +68,6 @@ static void ch32_thread() {
         xSemaphoreTake(ch32_int_semaphore, portMAX_DELAY);
         xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
 
-        //ESP_LOGW(TAG, "IRQ %s", gpio_get_level(BSP_CH32_IRQ_PIN) ? "H" : "L");
-
         // When an interrupt occurs, read buttons from I²C.
         esp_err_t res = i2c_master_write_read_device(
             BSP_I2CINT_NUM,
