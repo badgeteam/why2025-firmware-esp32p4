@@ -12,6 +12,7 @@
 // Badge buttons.
 // Not all buttons are implemented on every badge.
 typedef enum {
+    BSP_INPUT_NONE = 0,
     // Keyboard/DPAD left.
     BSP_INPUT_LEFT = 1,
     // Keyboard/DPAD right.

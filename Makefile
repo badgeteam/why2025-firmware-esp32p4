@@ -103,3 +103,20 @@ size-files:
 .PHONY: format
 format:
 	find main/ -iname '*.h' -o -iname '*.c' -o -iname '*.cpp' | xargs clang-format -i
+
+# Efuse
+
+.PHONY: efuse-summary
+efuse-summary:
+	source "$(IDF_PATH)/export.sh" && espefuse.py --port $(PORT) --baud 115200 --chip esp32p4 --before no_reset summary
+
+.PHONY: efuse-burn-3-volt-flash
+efuse-burn-3-volt-flash:
+	source "$(IDF_PATH)/export.sh" && espefuse.py --port $(PORT) --baud 115200 --chip esp32p4 --before no_reset burn_efuse PXA0_TIEH_SEL_0 2
+
+.PHONY: efuse-burn-swap-usb-device-pins
+efuse-burn-swap-usb-device-pins:
+	source "$(IDF_PATH)/export.sh" && espefuse.py --port $(PORT) --baud 115200 --chip esp32p4 --before no_reset burn_efuse USB_DEVICE_EXCHG_PINS 1
+
+.PHONY: efuse-burn-prototype1
+efuse-burn-prototype1: efuse-burn-3-volt-flash efuse-burn-swap-usb-device-pins

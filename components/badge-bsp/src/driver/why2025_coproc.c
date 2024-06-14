@@ -33,9 +33,25 @@ esp_err_t bsp_why2025_coproc_init() {
     if (xTaskCreate(ch32_thread, "CH32 driver", 2048, NULL, 0, &ch32_thread_handle) != pdTRUE) {
         return ESP_ERR_NO_MEM;
     }
-    gpio_set_direction(BSP_CH32_IRQ_PIN, GPIO_MODE_INPUT);
-    gpio_isr_handler_add(BSP_CH32_IRQ_PIN, ch32_isr, NULL);
-    return ESP_OK;
+
+    esp_err_t res = gpio_isr_handler_add(BSP_CH32_IRQ_PIN, ch32_isr, NULL);
+    if (res != ESP_OK) {
+        return res;
+    }
+
+    gpio_config_t sao_cfg = {
+        .pin_bit_mask = BIT64(BSP_CH32_IRQ_PIN),
+        .mode         = GPIO_MODE_INPUT,
+        .pull_up_en   = false,
+        .pull_down_en = false,
+        .intr_type    = GPIO_INTR_POSEDGE, //GPIO_INTR_NEGEDGE, (Firmware bug in CH32V203 firmware, will be fixed soon)
+    };
+    res = gpio_config(&sao_cfg);
+    if (res != ESP_OK) {
+        return res;
+    }
+
+    return res;
 }
 
 
@@ -44,12 +60,15 @@ esp_err_t bsp_why2025_coproc_init() {
 static void ch32_thread() {
     uint8_t prev_buttons[9] = {0};
     uint8_t buttons[9];
+    uint8_t prev_inputs = 0;
+    uint8_t inputs;
     ESP_LOGI(TAG, "CH32V203 thread started");
     while (true) {
         // Wait for an interrupt to be noticed.
-        gpio_intr_enable(BSP_CH32_IRQ_PIN);
-        xSemaphoreTake(ch32_int_semaphore, pdMS_TO_TICKS(100));
+        xSemaphoreTake(ch32_int_semaphore, portMAX_DELAY);
         xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
+
+        //ESP_LOGW(TAG, "IRQ %s", gpio_get_level(BSP_CH32_IRQ_PIN) ? "H" : "L");
 
         // When an interrupt occurs, read buttons from I²C.
         esp_err_t res = i2c_master_write_read_device(
@@ -61,6 +80,23 @@ static void ch32_thread() {
             9,
             pdMS_TO_TICKS(50)
         );
+
+        if (res != ESP_OK) {
+            xSemaphoreGive(ch32_semaphore);
+            continue;
+        }
+
+        // Read input status
+        res = i2c_master_write_read_device(
+            BSP_I2CINT_NUM,
+            BSP_CH32_ADDR,
+            (uint8_t[]){15}, // I2C_REG_INPUT
+            1,
+            &inputs,
+            1,
+            pdMS_TO_TICKS(50)
+        );
+
         xSemaphoreGive(ch32_semaphore);
         if (res != ESP_OK) {
             continue;
@@ -76,6 +112,19 @@ static void ch32_thread() {
                 }
             }
         }
+
+        if ((inputs & 1) != (prev_inputs & 1)) {
+            // SD card detect changed
+            ESP_LOGW(TAG, "SD card %s", (inputs & 1) ? "inserted" : "removed");
+        }
+
+        if ((inputs & 2) != (prev_inputs & 2)) {
+            // Headphone detect changed
+            ESP_LOGW(TAG, "Audio jack %s", (inputs & 2) ? "inserted" : "removed");
+        }
+
+        prev_inputs = inputs;
+
         memcpy(prev_buttons, buttons, sizeof(buttons));
     }
 }
@@ -83,8 +132,6 @@ static void ch32_thread() {
 // CH32V203 interrupt handler.
 IRAM_ATTR static void ch32_isr(void *arg) {
     (void)arg;
-    // Very simple mechanism to notify the CH32 thread.
-    gpio_intr_disable(BSP_CH32_IRQ_PIN);
     xSemaphoreGiveFromISR(ch32_int_semaphore, NULL);
     portYIELD_FROM_ISR();
 }
@@ -109,5 +156,13 @@ esp_err_t bsp_c6_control(bool enable, bool boot) {
     uint8_t buffer[2];
     buffer[0] = 17; // I2C_REG_RADIO_CONTROL
     buffer[1] = (enable & 1) | ((boot & 1) << 1);
+    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+}
+
+
+esp_err_t bsp_amplifier_control(bool enable) {
+    uint8_t buffer[2];
+    buffer[0] = 16; // I2C_REG_AMPLIFIER_ENABLE
+    buffer[1] = enable ? 1 : 0;
     return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
 }

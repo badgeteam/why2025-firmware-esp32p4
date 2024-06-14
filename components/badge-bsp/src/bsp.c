@@ -43,12 +43,16 @@ bool bsp_event_wait(bsp_event_t *event_out, uint64_t wait_ms) {
     return xQueueReceive(queue, event_out, ticks) == pdTRUE;
 }
 
+extern void demo_call(bsp_input_t input, bool pressed);
+
 // Call to notify the BSP of a button press.
 void bsp_raw_button_pressed(uint32_t dev_id, bsp_input_t input) {
     ESP_LOGI(TAG, "Device 0x%08" PRIx32 " input %d pressed", dev_id, input);
+    demo_call(input, true);
 }
 
 // Call to notify the BSP of a button release.
 void bsp_raw_button_released(uint32_t dev_id, bsp_input_t input) {
     ESP_LOGI(TAG, "Device 0x%08" PRIx32 " input %d released", dev_id, input);
+    demo_call(input, false);
 }
