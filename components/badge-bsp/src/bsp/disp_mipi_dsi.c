@@ -55,14 +55,14 @@ static esp_err_t dsi_phy_poweroff() {
 
 
 // Initialize MIPI DSI driver.
-bool bsp_disp_dsi_init(bsp_device_t *dev, bsp_disp_dsi_new_t new_fun) {
+bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t new_fun) {
     // Allocate data structures.
-    dev->disp_aux = malloc(sizeof(bsp_disp_dsi_t));
-    if (!dev->disp_aux) {
+    dev->disp_aux[endpoint] = malloc(sizeof(bsp_disp_dsi_t));
+    if (!dev->disp_aux[endpoint]) {
         ESP_LOGE(TAG, "Failed to initialize DSI display: %s", "out of memory");
         return false;
     }
-    bsp_disp_dsi_t *disp = dev->disp_aux;
+    bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
 
     esp_err_t res = dsi_phy_poweron();
     if (res != ESP_OK) {
@@ -124,14 +124,14 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, bsp_disp_dsi_new_t new_fun) {
         .dpi_clock_freq_mhz = BSP_DSI_DPI_CLK_MHZ,
         .pixel_format       = LCD_COLOR_PIXEL_FORMAT_RGB565,
         .video_timing = {
-            .h_size            = dev->tree->disp_dev->width,
-            .v_size            = dev->tree->disp_dev->height,
-            .hsync_back_porch  = dev->tree->disp_dev->h_bp,
-            .hsync_pulse_width = dev->tree->disp_dev->h_sync,
-            .hsync_front_porch = dev->tree->disp_dev->h_fp,
-            .vsync_back_porch  = dev->tree->disp_dev->v_bp,
-            .vsync_pulse_width = dev->tree->disp_dev->v_sync,
-            .vsync_front_porch = dev->tree->disp_dev->v_fp,
+            .h_size            = dev->tree->disp_dev[endpoint]->width,
+            .v_size            = dev->tree->disp_dev[endpoint]->height,
+            .hsync_back_porch  = dev->tree->disp_dev[endpoint]->h_bp,
+            .hsync_pulse_width = dev->tree->disp_dev[endpoint]->h_sync,
+            .hsync_front_porch = dev->tree->disp_dev[endpoint]->h_fp,
+            .vsync_back_porch  = dev->tree->disp_dev[endpoint]->v_bp,
+            .vsync_pulse_width = dev->tree->disp_dev[endpoint]->v_sync,
+            .vsync_front_porch = dev->tree->disp_dev[endpoint]->v_fp,
         },
         // TODO: Figure out what this is and when to use it.
         // .flags.use_dma2d = true,
@@ -156,15 +156,15 @@ error2:
     esp_lcd_del_dsi_bus(disp->bus_handle);
     dsi_phy_poweroff();
 error:
-    free(dev->disp_aux);
-    dev->disp_aux = NULL;
+    free(dev->disp_aux[endpoint]);
+    dev->disp_aux[endpoint] = NULL;
     ESP_LOGE(TAG, "Failed to initialize DSI display: %s", esp_err_to_name(res));
     return false;
 }
 
 // Deinitalize MIPI DSI driver.
-bool bsp_disp_dsi_deinit(bsp_device_t *dev) {
-    bsp_disp_dsi_t *disp = dev->disp_aux;
+bool bsp_disp_dsi_deinit(bsp_device_t *dev, uint8_t endpoint) {
+    bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
     esp_lcd_panel_disp_on_off(disp->ctrl_handle, false);
     esp_lcd_panel_del(disp->disp_handle);
     esp_lcd_panel_del(disp->ctrl_handle);
@@ -176,22 +176,22 @@ bool bsp_disp_dsi_deinit(bsp_device_t *dev) {
 
 
 // Send new image data to a device's display.
-void bsp_disp_dsi_update(bsp_device_t *dev, void const *framebuffer) {
-    bsp_disp_dsi_t *disp = dev->disp_aux;
+void bsp_disp_dsi_update(bsp_device_t *dev, uint8_t endpoint, void const *framebuffer) {
+    bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
     esp_lcd_panel_draw_bitmap(
         disp->disp_handle,
         0,
         0,
-        dev->tree->disp_dev->width,
-        dev->tree->disp_dev->height,
+        dev->tree->disp_dev[endpoint]->width,
+        dev->tree->disp_dev[endpoint]->height,
         framebuffer
     );
 }
 
 // Send new image data to part of a device's display.
 void bsp_disp_dsi_update_part(
-    bsp_device_t *dev, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
+    bsp_device_t *dev, uint8_t endpoint, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
 ) {
-    bsp_disp_dsi_t *disp = dev->disp_aux;
+    bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
     esp_lcd_panel_draw_bitmap(disp->disp_handle, x, y, w, h, framebuffer);
 }

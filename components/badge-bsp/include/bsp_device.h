@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "bsp_color.h"
 #include "bsp_input.h"
 #include "bsp_keymap.h"
 
@@ -11,6 +12,18 @@
 #include <stdint.h>
 
 
+
+// Endpoint types.
+typedef enum {
+    // Input devices.
+    BSP_EP_INPUT,
+    // LED devices.
+    BSP_EP_LED,
+    // Display devices.
+    BSP_EP_DISP,
+    // Number of endpoint types.
+    BSP_EP_TYPE_COUNT,
+} bsp_ep_type_t;
 
 // Input device category.
 typedef enum {
@@ -25,45 +38,27 @@ typedef enum {
 // Supported bus types.
 typedef enum {
     // MIPI DSI.
-    BSP_ADDR_BUS_DSI
+    BSP_BUS_MIPIDSI
 } bsp_bus_type_t;
+
+// Input device types.
+typedef enum {
+    BSP_INPUT_WHY2025_CH32,
+} bsp_ep_input_type_t;
+
+// LED device types.
+typedef enum {
+    BSP_LED_WHY2025_CH32,
+    BSP_LED_WS2812,
+} bsp_ep_led_type_t;
 
 // Display types.
 typedef enum {
     BSP_DISP_ST7701,
-} bsp_disp_type_t;
+} bsp_ep_disp_type_t;
 
-// Display / LED format descriptor.
-typedef enum {
-    // Black/red epaper display.
-    BSP_LED_2_11KR,
-
-    // 1-bit greyscale display.
-    BSP_LED_1_GREY,
-    // 2-bit greyscale display.
-    BSP_LED_2_GREY,
-    // 4-bit greyscale display.
-    BSP_LED_4_GREY,
-    // 8-bit greyscale display.
-    BSP_LED_8_GREY,
-
-    // 8-bit RGB display.
-    BSP_LED_8_332RGB,
-    // 16-bit RGB display.
-    BSP_LED_16_565RGB,
-    // 24-bit RGB display.
-    BSP_LED_24_888RGB,
-} bsp_led_col_t;
-
-// Get the bits per pixel for the given LED type.
-#define BSP_LED_GET_BPP(type)    ((type) & 0xff)
-// Reflects whether the LED type is greyscale.
-#define BSP_LED_IS_GREY(type)    (((type) & 0xf0000000) == 0x10000000)
-// Reflects whether the LED type is paletted.
-#define BSP_LED_IS_PALETTE(type) (((type) & 0xf0000000) == 0x20000000)
-// Reflects whether the LED type is color.
-#define BSP_LED_IS_COLOR(type)   (((type) & 0xf0000000) == 0x00000000)
-
+// Common device tree data.
+typedef union bsp_devtree_common   bsp_devtree_common_t;
 // Input device.
 typedef struct bsp_input_devtree   bsp_input_devtree_t;
 // Display / LED pixel format.
@@ -73,76 +68,105 @@ typedef struct bsp_led_devtree     bsp_led_devtree_t;
 // Display device.
 typedef struct bsp_display_devtree bsp_display_devtree_t;
 // Device descriptor.
-typedef struct bsp_devtree         bsp_devtree_t;
+typedef union bsp_devtree          bsp_devtree_t;
 
+// Common driver functions.
+typedef struct bsp_driver_common bsp_driver_common_t;
 // Input driver functions.
-typedef struct bsp_input_driver bsp_input_driver_t;
+typedef struct bsp_input_driver  bsp_input_driver_t;
+// LED driver functions.
+typedef struct bsp_led_driver    bsp_led_driver_t;
 // Display driver functions.
-typedef struct bsp_disp_driver  bsp_disp_driver_t;
+typedef struct bsp_disp_driver   bsp_disp_driver_t;
+
 // Device address.
-typedef struct bsp_addr         bsp_addr_t;
+typedef struct bsp_addr   bsp_addr_t;
 // Registered device.
-typedef struct bsp_device       bsp_device_t;
+typedef struct bsp_device bsp_device_t;
 
 // Device init / deinit functions.
-typedef bool (*bsp_dev_initfun_t)(bsp_device_t *dev);
+typedef bool (*bsp_dev_initfun_t)(bsp_device_t *dev, uint8_t endpoint);
 // Get current input value.
-typedef bool (*bsp_input_get_t)(bsp_device_t *dev, bsp_input_t input);
+typedef bool (*bsp_input_get_t)(bsp_device_t *dev, uint8_t endpoint, bsp_input_t input);
 // Get current input value by raw input number.
-typedef bool (*bsp_input_get_raw_t)(bsp_device_t *dev, uint16_t raw_input);
-// Set a device's input backlight.
-typedef void (*bsp_input_backlight_t)(bsp_device_t *dev, uint16_t pwm);
+typedef bool (*bsp_input_get_raw_t)(bsp_device_t *dev, uint8_t endpoint, uint16_t raw_input);
+// Set the color of a single LED from raw data.
+typedef void (*bsp_led_set_raw_t)(bsp_device_t *dev, uint8_t endpoint, uint16_t led, uint64_t data);
+// Get the color of a single LED as raw data.
+typedef uint64_t (*bsp_led_get_raw_t)(bsp_device_t *dev, uint8_t endpoint, uint16_t led);
+// Send new color data to an LED array.
+typedef void (*bsp_led_update_t)(bsp_device_t *dev, uint8_t endpoint);
 // Send new image data to a device's display.
-typedef void (*bsp_disp_update_t)(bsp_device_t *dev, void const *framebuffer);
+typedef void (*bsp_disp_update_t)(bsp_device_t *dev, uint8_t endpoint, void const *framebuffer);
 // Send new image data to part of a device's display.
 typedef void (*bsp_disp_update_part_t)(
-    bsp_device_t *dev, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
+    bsp_device_t *dev, uint8_t endpoint, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
 );
-// Set a device's display backlight.
-typedef void (*bsp_disp_backlight_t)(bsp_device_t *dev, uint16_t pwm);
 
 
+
+// Device address.
+struct bsp_addr {
+    // Bus type.
+    bsp_bus_type_t bus;
+    // Controller ID / index.
+    uint16_t       controller;
+    // Device ID / index.
+    uint16_t       device;
+};
+
+// Common device tree data.
+union bsp_devtree_common {
+    // Initialization priority, lowest happens first.
+    int        init_prio;
+    // Endpoint address.
+    bsp_addr_t addr;
+    // Endpoint type used for driver selection.
+    int        type;
+};
 
 // Input device.
 struct bsp_input_devtree {
-    // Initialization priority, lowest happens first.
-    int             init_prio;
+    // Common device tree data.
+    bsp_devtree_common_t common;
     // Input device category.
-    bsp_input_cat_t type;
+    bsp_input_cat_t      category;
     // Button / key map for input devices.
-    keymap_t const *keymap;
-    // Whether this device has a backlight.
-    bool            has_backlight;
-    // Number of player indicators.
-    uint8_t         players_len;
+    keymap_t const      *keymap;
+    // Backlight endpoint.
+    uint8_t              backlight_endpoint;
+    // Backlight index.
+    uint16_t             backlight_index;
 };
 
 // Display / LED pixel format.
 struct bsp_led_desc {
     // Color type.
-    bsp_led_col_t color;
+    bsp_pixfmt_t color;
     // Reverse channel order (e.g. RGB -> BGR).
-    bool          reversed;
+    bool         reversed;
 };
 
 // LED device.
 struct bsp_led_devtree {
-    // Initialization priority, lowest happens first.
-    int            init_prio;
+    // Common device tree data.
+    bsp_devtree_common_t common;
     // LED type.
-    bsp_led_desc_t ledfmt;
+    bsp_led_desc_t       ledfmt;
     // Number of LEDs on this device.
-    uint16_t       num_leds;
+    uint16_t             num_leds;
 };
 
 // Display device.
 struct bsp_display_devtree {
-    // Initialization priority, lowest happens first.
-    int             init_prio;
-    // Display type.
-    bsp_disp_type_t type;
+    // Common device tree data.
+    bsp_devtree_common_t common;
+    // Backlight endpoint.
+    uint8_t              backlight_endpoint;
+    // Backlight index.
+    uint16_t             backlight_index;
     // Pixel format.
-    bsp_led_desc_t  pixfmt;
+    bsp_led_desc_t       pixfmt;
 
     // Horizontal front porch width.
     uint8_t  h_fp;
@@ -164,67 +188,101 @@ struct bsp_display_devtree {
 };
 
 // Device descriptor.
-struct bsp_devtree {
-    // Input device.
-    bsp_input_devtree_t const   *input_dev;
-    // LED string device.
-    bsp_led_devtree_t const     *led_dev;
-    // Display device.
-    bsp_display_devtree_t const *disp_dev;
+union bsp_devtree {
+    struct {
+        // Number of input endpoints.
+        uint8_t                             input_count;
+        // Number of LED string endpoints.
+        uint8_t                             led_count;
+        // Number of display device endpoints.
+        uint8_t                             disp_count;
+        // Input device.
+        bsp_input_devtree_t const *const   *input_dev;
+        // LED string device.
+        bsp_led_devtree_t const *const     *led_dev;
+        // Display device.
+        bsp_display_devtree_t const *const *disp_dev;
+    };
+    struct {
+        // Endpoint counts by type.
+        uint8_t                            ep_counts[BSP_EP_TYPE_COUNT];
+        // Endpoint descriptors by type.
+        bsp_devtree_common_t const *const *ep_trees[BSP_EP_TYPE_COUNT];
+    };
 };
 
 
 
+// Common driver functions.
+struct bsp_driver_common {
+    // Initialize the endpoint.
+    bsp_dev_initfun_t init;
+    // Deinitialize the endpoint.
+    bsp_dev_initfun_t deinit;
+};
+
 // Input driver functions.
 struct bsp_input_driver {
-    // Initialize the input device.
-    bsp_dev_initfun_t     init;
-    // Deinitialize the input device.
-    bsp_dev_initfun_t     deinit;
+    // Common driver functions.
+    bsp_driver_common_t common;
     // Get current input value.
-    bsp_input_get_t       get;
+    bsp_input_get_t     get;
     // Get current input value by raw input number.
-    bsp_input_get_raw_t   get_raw;
-    // Set a device's input backlight.
-    bsp_input_backlight_t backlight;
+    bsp_input_get_raw_t get_raw;
+};
+
+// LED driver functions.
+struct bsp_led_driver {
+    // Common driver functions.
+    bsp_driver_common_t common;
+    // Set the color of a single LED from raw data.
+    bsp_led_set_raw_t   set_raw;
+    // Get the color of a single LED as raw data.
+    bsp_led_get_raw_t   get_raw;
+    // Send new color data to an LED array.
+    bsp_led_update_t    update;
 };
 
 // Display driver functions.
 struct bsp_disp_driver {
-    // Initialize the display.
-    bsp_dev_initfun_t      init;
-    // Deinitialize the display.
-    bsp_dev_initfun_t      deinit;
+    // Common driver functions.
+    bsp_driver_common_t    common;
     // Send new image data to a device's display.
     bsp_disp_update_t      update;
     // Send new image data to part of a device's display.
     bsp_disp_update_part_t update_part;
-    // Set a device's display backlight.
-    bsp_disp_backlight_t   backlight;
-};
-
-// Device address.
-struct bsp_addr {
-    // Bus type.
-    bsp_bus_type_t bus;
-    // Controller ID / index.
-    uint16_t       controller;
-    // Device ID / index.
-    uint16_t       device;
 };
 
 // Registered device.
 struct bsp_device {
     // BSP device ID.
-    uint32_t                  id;
+    uint32_t             id;
     // Device tree.
-    bsp_devtree_t const      *tree;
-    // Drivers for input devices.
-    bsp_input_driver_t const *input_driver;
-    // Drivers for display devices.
-    bsp_disp_driver_t const  *disp_driver;
-    // Auxiliary driver data.
-    void                     *input_aux, *disp_aux;
+    bsp_devtree_t const *tree;
+    union {
+        struct {
+            // Drivers for input endpoints.
+            bsp_input_driver_t const **input_drivers;
+            // Drivers for LED endpoints.
+            bsp_led_driver_t const   **led_drivers;
+            // Drivers for display endpoints.
+            bsp_disp_driver_t const  **disp_drivers;
+        };
+        // Drivers per endpoint type.
+        bsp_driver_common_t const **ep_drivers[BSP_EP_TYPE_COUNT];
+    };
+    union {
+        struct {
+            // Auxiliary driver data for input endpoints.
+            void **input_aux;
+            // Auxiliary driver data for LED endpoints.
+            void **led_aux;
+            // Auxiliary driver data for display endpoints.
+            void **disp_aux;
+        };
+        // Auxiliary driver data per endpoint type.
+        void **ep_aux[BSP_EP_TYPE_COUNT];
+    };
 };
 
 
@@ -235,14 +293,24 @@ uint32_t bsp_dev_register(bsp_devtree_t const *tree);
 bool     bsp_dev_unregister(uint32_t dev_id);
 
 // Get current input value.
-bool bsp_input_get(uint32_t dev_id, bsp_input_t input);
+bool bsp_input_get(uint32_t dev_id, uint8_t endpoint, bsp_input_t input);
 // Get current input value by raw input number.
-bool bsp_input_get_raw(uint32_t dev_id, uint16_t raw_input);
+bool bsp_input_get_raw(uint32_t dev_id, uint8_t endpoint, uint16_t raw_input);
 // Set a device's input backlight.
-void bsp_input_backlight(uint32_t dev_id, uint16_t pwm);
+void bsp_input_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm);
+
+// Set the color of a single LED from raw data.
+void     bsp_led_set_raw(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint32_t data);
+// Get the color of a single LED as raw data.
+uint32_t bsp_led_get_raw(uint32_t dev_id, uint8_t endpoint, uint16_t led);
+// Send new color data to an LED array.
+void     bsp_led_update(uint32_t dev_id, uint8_t endpoint);
+
 // Send new image data to a device's display.
-void bsp_disp_update(uint32_t dev_id, void const *framebuffer);
+void bsp_disp_update(uint32_t dev_id, uint8_t endpoint, void const *framebuffer);
 // Send new image data to part of a device's display.
-void bsp_disp_update_part(uint32_t dev_id, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h);
+void bsp_disp_update_part(
+    uint32_t dev_id, uint8_t endpoint, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
+);
 // Set a device's display backlight.
-void bsp_disp_backlight(uint32_t dev_id, uint16_t pwm);
+void bsp_disp_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm);

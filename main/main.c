@@ -22,7 +22,7 @@ void display_version() {
 }
 
 bsp_display_devtree_t const disp_tree = {
-    .pixfmt = {BSP_LED_16_565RGB, false},
+    .pixfmt = {BSP_PIXFMT_16_565RGB, false},
     .h_fp   = BSP_DSI_LCD_HFP,
     .width  = BSP_DSI_LCD_H_RES,
     .h_bp   = BSP_DSI_LCD_HBP,
@@ -33,7 +33,10 @@ bsp_display_devtree_t const disp_tree = {
     .v_sync = BSP_DSI_LCD_VSYNC,
 };
 bsp_devtree_t const tree = {
-    .disp_dev = &disp_tree,
+    .disp_count = 1,
+    .disp_dev   = (bsp_display_devtree_t const *const[]) {
+        &disp_tree,
+    },
 };
 
 void app_main(void) {
@@ -47,5 +50,5 @@ void app_main(void) {
     pax_draw_text(&gfx, 0xffffffff, pax_font_sky, 36, 0, 0, "Julian Wuz Here");
 
     uint32_t dev_id = bsp_dev_register(&tree);
-    bsp_disp_update(dev_id, pax_buf_get_pixels(&gfx));
+    bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
 }

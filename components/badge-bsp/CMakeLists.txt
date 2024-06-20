@@ -5,6 +5,7 @@ idf_component_register(
         src/bsp/disp_mipi_dsi.c
         src/bsp/why2025_coproc.c
         src/init/why2025.c
+        src/bsp_color.c
         src/bsp_device.c
         src/bsp_keymap.c
         src/bsp.c

@@ -161,8 +161,9 @@ err:
     return ret;
 }
 
-bool bsp_disp_st7701_init(bsp_device_t *dev) {
-    return bsp_disp_dsi_init(dev, bsp_disp_st7701_new);
+bool bsp_disp_st7701_init(bsp_device_t *dev, uint8_t endpoint) {
+    ESP_LOGI(TAG, "Pre init ST7701");
+    return bsp_disp_dsi_init(dev, endpoint, bsp_disp_st7701_new);
 }
 
 static esp_err_t bsp_st7701_del(esp_lcd_panel_t *panel) {

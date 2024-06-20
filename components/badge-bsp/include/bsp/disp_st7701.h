@@ -13,4 +13,4 @@
 
 
 // ST7701 init function.
-bool bsp_disp_st7701_init(bsp_device_t *dev);
+bool bsp_disp_st7701_init(bsp_device_t *dev, uint8_t endpoint);

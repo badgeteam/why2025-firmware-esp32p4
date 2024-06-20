@@ -20,13 +20,13 @@ typedef esp_err_t (*bsp_disp_dsi_new_t)(
 );
 
 // Initialize MIPI DSI driver.
-bool bsp_disp_dsi_init(bsp_device_t *dev, bsp_disp_dsi_new_t new_fun);
+bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t new_fun);
 // Deinitalize MIPI DSI driver.
-bool bsp_disp_dsi_deinit(bsp_device_t *dev);
+bool bsp_disp_dsi_deinit(bsp_device_t *dev, uint8_t endpoint);
 
 // Send new image data to a device's display.
-void bsp_disp_dsi_update(bsp_device_t *dev, void const *framebuffer);
+void bsp_disp_dsi_update(bsp_device_t *dev, uint8_t endpoint, void const *framebuffer);
 // Send new image data to part of a device's display.
 void bsp_disp_dsi_update_part(
-    bsp_device_t *dev, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
+    bsp_device_t *dev, uint8_t endpoint, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
 );
