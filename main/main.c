@@ -23,16 +23,12 @@ void display_version() {
 
 bsp_input_devtree_t const input_tree = {
     .common = {
-        .type = BSP_EP_INPUT_GPIO,
+        .type = BSP_EP_INPUT_WHY2025_CH32,
     },
-    .category = BSP_INPUT_CAT_GENERIC,
-    .pinmap   = &(bsp_pinmap_t const){
-        .activelow = true,
-        .pins_len  = 1,
-        .pins      = (uint8_t const[]) {
-            35,
-        },
-    },
+    .category           = BSP_INPUT_CAT_KEYBOARD,
+    .keymap             = &bsp_keymap_why2025,
+    .backlight_endpoint = 0,
+    .backlight_index    = 1,
 };
 bsp_display_devtree_t const disp_tree = {
     .common = {
@@ -47,13 +43,15 @@ bsp_display_devtree_t const disp_tree = {
     .height = BSP_DSI_LCD_V_RES,
     .v_bp   = BSP_DSI_LCD_VBP,
     .v_sync = BSP_DSI_LCD_VSYNC,
+    .backlight_endpoint = 0,
+    .backlight_index    = 0,
 };
 bsp_devtree_t const tree = {
     .input_count = 1,
     .input_dev = (bsp_input_devtree_t const *const[]) {
         &input_tree,
     },
-    .disp_count = 0,
+    .disp_count = 1,
     .disp_dev   = (bsp_display_devtree_t const *const[]) {
         &disp_tree,
     },
@@ -72,6 +70,9 @@ void app_main(void) {
     uint32_t dev_id = bsp_dev_register(&tree);
     bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
 
+    bsp_disp_backlight(dev_id, 0, 65535);
+    bsp_input_backlight(dev_id, 0, 16384);
+
     while (true) {
         bsp_event_t event;
         if (bsp_event_wait(&event, UINT64_MAX)) {
@@ -82,9 +83,10 @@ void app_main(void) {
             };
             ESP_LOGI(
                 "main",
-                "Dev %" PRIu32 " ep %" PRIu8 " input %" PRIu8 " %s",
+                "Dev %" PRIu32 " ep %" PRIu8 " input %d raw input %d %s",
                 event.input.dev_id,
                 event.input.endpoint,
+                event.input.input,
                 event.input.raw_input,
                 tab[event.input.type]
             );
