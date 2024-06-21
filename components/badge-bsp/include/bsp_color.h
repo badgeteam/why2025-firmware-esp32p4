@@ -42,25 +42,25 @@ typedef enum {
 } bsp_pixfmt_t;
 
 // Convert 16-bit greyscale to raw color data.
-uint64_t bsp_16grey_to_col(bsp_pixfmt_t format, uint16_t value);
+uint64_t bsp_grey16_to_col(bsp_pixfmt_t format, uint16_t value);
 // Convert 16-bit greyscale to raw color data.
-uint16_t bsp_col_to_16grey(bsp_pixfmt_t format, uint64_t value);
+uint16_t bsp_col_to_grey16(bsp_pixfmt_t format, uint64_t value);
 
 // Convert 16-bit greyscale to raw color data.
-static inline uint64_t bsp_8grey_to_col(bsp_pixfmt_t format, uint8_t value) {
-    return bsp_16grey_to_col(format, value * 0x0101);
+static inline uint64_t bsp_grey8_to_col(bsp_pixfmt_t format, uint8_t value) {
+    return bsp_grey16_to_col(format, value * 0x0101);
 }
 // Convert 16-bit greyscale to raw color data.
-static inline uint8_t bsp_col_to_8grey(bsp_pixfmt_t format, uint64_t value) {
-    return bsp_col_to_16grey(format, value) >> 8;
+static inline uint8_t bsp_col_to_grey8(bsp_pixfmt_t format, uint64_t value) {
+    return bsp_col_to_grey16(format, value) >> 8;
 }
 
 // Convert 48-bit RGB to raw color data.
-uint64_t bsp_161616rgb_to_col(bsp_pixfmt_t format, uint64_t rgb);
+uint64_t bsp_rgb48_to_col(bsp_pixfmt_t format, uint64_t rgb);
 // Convert raw color data to 48-bit RGB.
-uint64_t bsp_col_to_161616rgb(bsp_pixfmt_t format, uint64_t value);
+uint64_t bsp_col_to_rgb48(bsp_pixfmt_t format, uint64_t value);
 
 // Convert 24-bit RGB to raw color data.
-uint64_t bsp_888rgb_to_col(bsp_pixfmt_t format, uint32_t rgb);
+uint64_t bsp_rgb_to_col(bsp_pixfmt_t format, uint32_t rgb);
 // Convert raw color data to 24-bit RGB.
-uint32_t bsp_col_to_888rgb(bsp_pixfmt_t format, uint64_t value);
+uint32_t bsp_col_to_rgb(bsp_pixfmt_t format, uint64_t value);

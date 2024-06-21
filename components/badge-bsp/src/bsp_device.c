@@ -3,8 +3,10 @@
 
 #include "bsp_device.h"
 
+#include "bsp.h"
 #include "bsp/disp_mipi_dsi.h"
 #include "bsp/disp_st7701.h"
+#include "bsp/input_gpio.h"
 #include "bsp_color.h"
 
 #include <esp_log.h>
@@ -18,7 +20,13 @@ static char const TAG[] = "bsp-device";
 
 // Input driver table.
 static bsp_input_driver_t const *input_tab[] = {
-    // TODO.
+    [BSP_EP_INPUT_GPIO] = &(bsp_input_driver_t const){
+        .common = {
+            .init    = bsp_input_gpio_init,
+            .deinit  = bsp_input_gpio_deinit,
+        },
+        .get_raw = bsp_input_gpio_get_raw,
+    },
 };
 static size_t const input_tab_len = sizeof(input_tab) / sizeof(bsp_input_driver_t const *);
 
@@ -30,7 +38,7 @@ static size_t const led_tab_len = sizeof(led_tab) / sizeof(bsp_led_driver_t cons
 
 // Display driver table.
 static bsp_disp_driver_t const *const disp_tab[] = {
-    [BSP_DISP_ST7701] = &(bsp_disp_driver_t const){
+    [BSP_EP_DISP_ST7701] = &(bsp_disp_driver_t const){
         .common = {
             .init    = bsp_disp_st7701_init,
             .deinit  = bsp_disp_dsi_deinit,
@@ -104,7 +112,7 @@ static bool acq_excl() {
 }
 
 // Release the device mutex exclusively.
-void rel_excl() {
+static void rel_excl() {
     xSemaphoreGive(bsp_dev_mtx);
 }
 
@@ -342,12 +350,204 @@ void bsp_input_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm) {
         return;
     }
     if (dev->led_drivers[endpoint]) {
-        uint64_t value = bsp_16grey_to_col(dev->tree->disp_dev[endpoint]->pixfmt.color, pwm);
+        uint64_t value = bsp_grey16_to_col(dev->tree->disp_dev[endpoint]->pixfmt.color, pwm);
         dev->led_drivers[endpoint]->set_raw(dev, endpoint, idx, value);
         dev->led_drivers[endpoint]->update(dev, endpoint);
     }
     rel_shared();
 }
+
+
+// Set the color of a single LED from 16-bit greyscale.
+void bsp_led_set_grey16(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint16_t value) {
+    if (!acq_shared()) {
+        return;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return;
+    }
+    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
+    driver->set_raw(dev, endpoint, led, bsp_grey16_to_col(tree->ledfmt.color, value));
+    rel_shared();
+}
+
+// Get the color of a single LED as 16-bit greyscale.
+uint16_t bsp_led_get_grey16(uint32_t dev_id, uint8_t endpoint, uint16_t led) {
+    if (!acq_shared()) {
+        return 0;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return 0;
+    }
+    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
+    uint64_t                 raw    = driver->get_raw(dev, endpoint, led);
+    rel_shared();
+    return bsp_col_to_grey16(tree->ledfmt.color, raw);
+}
+
+// Set the color of a single LED from 8-bit greyscale.
+void bsp_led_set_grey8(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint16_t value) {
+    if (!acq_shared()) {
+        return;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return;
+    }
+    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
+    driver->set_raw(dev, endpoint, led, bsp_grey8_to_col(tree->ledfmt.color, value));
+    rel_shared();
+}
+
+// Get the color of a single LED as 8-bit greyscale.
+uint16_t bsp_led_get_grey8(uint32_t dev_id, uint8_t endpoint, uint16_t led) {
+    if (!acq_shared()) {
+        return 0;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return 0;
+    }
+    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
+    uint64_t                 raw    = driver->get_raw(dev, endpoint, led);
+    rel_shared();
+    return bsp_col_to_grey8(tree->ledfmt.color, raw);
+}
+
+// Set the color of a single LED from 48-bit RGB.
+void bsp_led_set_rgb48(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint64_t rgb) {
+    if (!acq_shared()) {
+        return;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return;
+    }
+    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
+    driver->set_raw(dev, endpoint, led, bsp_rgb48_to_col(tree->ledfmt.color, rgb));
+    rel_shared();
+}
+
+// Get the color of a single LED as 48-bit RGB.
+uint64_t bsp_led_get_rgb48(uint32_t dev_id, uint8_t endpoint, uint16_t led) {
+    if (!acq_shared()) {
+        return 0;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return 0;
+    }
+    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
+    uint64_t                 raw    = driver->get_raw(dev, endpoint, led);
+    rel_shared();
+    return bsp_col_to_rgb48(tree->ledfmt.color, raw);
+}
+
+// Set the color of a single LED from 24-bit RGB.
+void bsp_led_set_rgb(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint32_t rgb) {
+    if (!acq_shared()) {
+        return;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return;
+    }
+    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
+    driver->set_raw(dev, endpoint, led, bsp_rgb_to_col(tree->ledfmt.color, rgb));
+    rel_shared();
+}
+
+// Get the color of a single LED as 24-bit RGB.
+uint32_t bsp_led_get_rgb(uint32_t dev_id, uint8_t endpoint, uint16_t led) {
+    if (!acq_shared()) {
+        return 0;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return 0;
+    }
+    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
+    uint64_t                 raw    = driver->get_raw(dev, endpoint, led);
+    rel_shared();
+    return bsp_col_to_rgb(tree->ledfmt.color, raw);
+}
+
+
+// Set the color of a single LED from raw data.
+void bsp_led_set_raw(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint64_t data) {
+    if (!acq_shared()) {
+        return;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return;
+    }
+    bsp_led_driver_t const *driver = dev->led_drivers[endpoint];
+    driver->set_raw(dev, endpoint, led, data);
+    rel_shared();
+}
+
+// Get the color of a single LED as raw data.
+uint64_t bsp_led_get_raw(uint32_t dev_id, uint8_t endpoint, uint16_t led) {
+    if (!acq_shared()) {
+        return 0;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return 0;
+    }
+    bsp_led_driver_t const *driver = dev->led_drivers[endpoint];
+    uint64_t                raw    = driver->get_raw(dev, endpoint, led);
+    rel_shared();
+    return raw;
+}
+
+// Send new color data to an LED array.
+void bsp_led_update(uint32_t dev_id, uint8_t endpoint) {
+    if (!acq_shared()) {
+        return;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+        rel_shared();
+        return;
+    }
+    bsp_led_driver_t const *driver = dev->led_drivers[endpoint];
+    driver->update(dev, endpoint);
+    rel_shared();
+}
+
 
 // Send new image data to a device's display.
 void bsp_disp_update(uint32_t dev_id, uint8_t endpoint, void const *framebuffer) {
@@ -380,4 +580,60 @@ void bsp_disp_update_part(
 // Set a device's display backlight.
 void bsp_disp_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm) {
     // TODO.
+}
+
+
+
+// Button event implementation.
+static void button_event_impl(uint32_t dev_id, uint8_t endpoint, int input, bool pressed, bool from_isr) {
+    if (!from_isr && !acq_shared()) {
+        return;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->input_count || !dev->input_drivers[endpoint]) {
+        if (!from_isr) {
+            rel_shared();
+        }
+        return;
+    }
+    bsp_input_devtree_t const *tree = dev->tree->input_dev[endpoint];
+    bsp_event_t                event;
+    event.type            = BSP_EVENT_INPUT;
+    event.input.type      = pressed ? BSP_INPUT_EVENT_PRESS : BSP_INPUT_EVENT_RELEASE;
+    event.input.dev_id    = dev_id;
+    event.input.endpoint  = endpoint;
+    event.input.raw_input = input;
+    if (tree->keymap && input < tree->keymap->max_scancode) {
+        event.input.input = tree->keymap->keymap[input];
+    } else {
+        event.input.input = BSP_INPUT_NONE;
+    }
+    event.input.nav_input = event.input.input;
+    if (from_isr) {
+        bsp_event_queue(&event);
+    } else {
+        bsp_event_queue_from_isr(&event);
+        rel_shared();
+    }
+}
+
+// Call to notify the BSP of a button press.
+void bsp_raw_button_pressed(uint32_t dev_id, uint8_t endpoint, int input) {
+    button_event_impl(dev_id, endpoint, input, true, false);
+}
+
+// Call to notify the BSP of a button release.
+void bsp_raw_button_released(uint32_t dev_id, uint8_t endpoint, int input) {
+    button_event_impl(dev_id, endpoint, input, false, false);
+}
+
+// Call to notify the BSP of a button press.
+void bsp_raw_button_pressed_from_isr(uint32_t dev_id, uint8_t endpoint, int input) {
+    button_event_impl(dev_id, endpoint, input, true, true);
+}
+
+// Call to notify the BSP of a button release.
+void bsp_raw_button_released_from_isr(uint32_t dev_id, uint8_t endpoint, int input) {
+    button_event_impl(dev_id, endpoint, input, false, true);
 }

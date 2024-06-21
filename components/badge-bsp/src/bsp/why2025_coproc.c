@@ -4,6 +4,7 @@
 #include "bsp/why2025_coproc.h"
 
 #include "bsp.h"
+#include "bsp_device.h"
 
 #include <driver/gpio.h>
 #include <driver/i2c.h>
@@ -18,10 +19,11 @@ static char const TAG[] = "coprocessor";
 static SemaphoreHandle_t ch32_int_semaphore;
 static SemaphoreHandle_t ch32_semaphore;
 static TaskHandle_t      ch32_thread_handle;
-static void              ch32_thread();
+static void              ch32_thread(void *arg);
 static void              ch32_isr(void *arg);
 
 // Initialise the co-processor drivers.
+// TODO: Integrate properly with device tree.
 esp_err_t bsp_why2025_coproc_init() {
     // Initialise the CH32V203 driver.
     ch32_int_semaphore = xSemaphoreCreateBinary();
@@ -41,7 +43,8 @@ esp_err_t bsp_why2025_coproc_init() {
 
 
 // CH32V203 driver thread.
-static void ch32_thread() {
+static void ch32_thread(void *arg) {
+    (void)arg;
     uint8_t prev_buttons[9] = {0};
     uint8_t buttons[9];
     ESP_LOGI(TAG, "CH32V203 thread started");
@@ -70,9 +73,9 @@ static void ch32_thread() {
         for (int row = 0; row < 9; row++) {
             for (int col = 0; col < 8; col++) {
                 if (((buttons[row] & ~prev_buttons[row]) >> col) & 1) {
-                    bsp_raw_button_pressed(0, row * 8 + col);
+                    bsp_raw_button_pressed(1, 0, row * 8 + col);
                 } else if (((~buttons[row] & prev_buttons[row]) >> col) & 1) {
-                    bsp_raw_button_released(0, row * 8 + col);
+                    bsp_raw_button_released(1, 0, row * 8 + col);
                 }
             }
         }

@@ -43,22 +43,25 @@ typedef enum {
 
 // Input device types.
 typedef enum {
-    BSP_INPUT_WHY2025_CH32,
+    BSP_EP_INPUT_GPIO,
+    BSP_EP_INPUT_WHY2025_CH32,
 } bsp_ep_input_type_t;
 
 // LED device types.
 typedef enum {
-    BSP_LED_WHY2025_CH32,
-    BSP_LED_WS2812,
+    BSP_EP_LED_WS2812,
+    BSP_EP_LED_WHY2025_CH32,
 } bsp_ep_led_type_t;
 
 // Display types.
 typedef enum {
-    BSP_DISP_ST7701,
+    BSP_EP_DISP_ST7701,
 } bsp_ep_disp_type_t;
 
 // Common device tree data.
 typedef union bsp_devtree_common   bsp_devtree_common_t;
+// GPIO pin mappings.
+typedef struct bsp_pinmap          bsp_pinmap_t;
 // Input device.
 typedef struct bsp_input_devtree   bsp_input_devtree_t;
 // Display / LED pixel format.
@@ -125,14 +128,26 @@ union bsp_devtree_common {
     int        type;
 };
 
+// GPIO pin mappings.
+struct bsp_pinmap {
+    // Active-low logic.
+    bool           activelow;
+    // Number of pins.
+    uint8_t        pins_len;
+    // GPIO pins assigned to raw inputs/outputs.
+    uint8_t const *pins;
+};
+
 // Input device.
 struct bsp_input_devtree {
     // Common device tree data.
     bsp_devtree_common_t common;
     // Input device category.
     bsp_input_cat_t      category;
+    // GPIO pin descriptors.
+    bsp_pinmap_t const  *pinmap;
     // Button / key map for input devices.
-    keymap_t const      *keymap;
+    bsp_keymap_t const  *keymap;
     // Backlight endpoint.
     uint8_t              backlight_endpoint;
     // Backlight index.
@@ -292,25 +307,12 @@ uint32_t bsp_dev_register(bsp_devtree_t const *tree);
 // Unregister an existing device.
 bool     bsp_dev_unregister(uint32_t dev_id);
 
-// Get current input value.
-bool bsp_input_get(uint32_t dev_id, uint8_t endpoint, bsp_input_t input);
-// Get current input value by raw input number.
-bool bsp_input_get_raw(uint32_t dev_id, uint8_t endpoint, uint16_t raw_input);
-// Set a device's input backlight.
-void bsp_input_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm);
+// Call to notify the BSP of a button press.
+void bsp_raw_button_pressed(uint32_t dev_id, uint8_t endpoint, int input);
+// Call to notify the BSP of a button release.
+void bsp_raw_button_released(uint32_t dev_id, uint8_t endpoint, int input);
 
-// Set the color of a single LED from raw data.
-void     bsp_led_set_raw(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint32_t data);
-// Get the color of a single LED as raw data.
-uint32_t bsp_led_get_raw(uint32_t dev_id, uint8_t endpoint, uint16_t led);
-// Send new color data to an LED array.
-void     bsp_led_update(uint32_t dev_id, uint8_t endpoint);
-
-// Send new image data to a device's display.
-void bsp_disp_update(uint32_t dev_id, uint8_t endpoint, void const *framebuffer);
-// Send new image data to part of a device's display.
-void bsp_disp_update_part(
-    uint32_t dev_id, uint8_t endpoint, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
-);
-// Set a device's display backlight.
-void bsp_disp_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm);
+// Call to notify the BSP of a button press.
+void bsp_raw_button_pressed_from_isr(uint32_t dev_id, uint8_t endpoint, int input);
+// Call to notify the BSP of a button release.
+void bsp_raw_button_released_from_isr(uint32_t dev_id, uint8_t endpoint, int input);

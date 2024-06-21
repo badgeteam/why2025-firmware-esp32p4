@@ -3,6 +3,7 @@ idf_component_register(
     SRCS
         src/bsp/disp_st7701.c
         src/bsp/disp_mipi_dsi.c
+        src/bsp/input_gpio.c
         src/bsp/why2025_coproc.c
         src/init/why2025.c
         src/bsp_color.c

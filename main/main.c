@@ -21,7 +21,23 @@ void display_version() {
     printf("BADGE.TEAM %s launcher firmware v%s\n", app_description->project_name, app_description->version);
 }
 
+bsp_input_devtree_t const input_tree = {
+    .common = {
+        .type = BSP_EP_INPUT_GPIO,
+    },
+    .category = BSP_INPUT_CAT_GENERIC,
+    .pinmap   = &(bsp_pinmap_t const){
+        .activelow = true,
+        .pins_len  = 1,
+        .pins      = (uint8_t const[]) {
+            35,
+        },
+    },
+};
 bsp_display_devtree_t const disp_tree = {
+    .common = {
+        .type = BSP_EP_DISP_ST7701,
+    },
     .pixfmt = {BSP_PIXFMT_16_565RGB, false},
     .h_fp   = BSP_DSI_LCD_HFP,
     .width  = BSP_DSI_LCD_H_RES,
@@ -33,7 +49,11 @@ bsp_display_devtree_t const disp_tree = {
     .v_sync = BSP_DSI_LCD_VSYNC,
 };
 bsp_devtree_t const tree = {
-    .disp_count = 1,
+    .input_count = 1,
+    .input_dev = (bsp_input_devtree_t const *const[]) {
+        &input_tree,
+    },
+    .disp_count = 0,
     .disp_dev   = (bsp_display_devtree_t const *const[]) {
         &disp_tree,
     },
@@ -51,4 +71,23 @@ void app_main(void) {
 
     uint32_t dev_id = bsp_dev_register(&tree);
     bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
+
+    while (true) {
+        bsp_event_t event;
+        if (bsp_event_wait(&event, UINT64_MAX)) {
+            char const *const tab[] = {
+                [BSP_INPUT_EVENT_PRESS]   = "pressed",
+                [BSP_INPUT_EVENT_HOLD]    = "held",
+                [BSP_INPUT_EVENT_RELEASE] = "released",
+            };
+            ESP_LOGI(
+                "main",
+                "Dev %" PRIu32 " ep %" PRIu8 " input %" PRIu8 " %s",
+                event.input.dev_id,
+                event.input.endpoint,
+                event.input.raw_input,
+                tab[event.input.type]
+            );
+        }
+    }
 }

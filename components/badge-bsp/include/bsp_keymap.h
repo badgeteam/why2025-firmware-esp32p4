@@ -13,7 +13,7 @@ typedef struct {
     uint16_t        max_scancode;
     // Scan code to BSP input table.
     uint16_t const *keymap;
-} keymap_t;
+} bsp_keymap_t;
 
 // WHY2025 badge built-in keyboard.
-extern keymap_t const bsp_keymap_why2025;
+extern bsp_keymap_t const bsp_keymap_why2025;

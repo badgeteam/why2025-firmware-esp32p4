@@ -12,8 +12,11 @@
 // Badge buttons.
 // Not all buttons are implemented on every badge.
 typedef enum {
+    // None or unknown input.
+    BSP_INPUT_NONE,
+
     // Keyboard/DPAD left.
-    BSP_INPUT_LEFT = 1,
+    BSP_INPUT_LEFT,
     // Keyboard/DPAD right.
     BSP_INPUT_RIGHT,
     // Keyboard/DPAD up.
@@ -258,6 +261,8 @@ typedef struct {
     bsp_input_event_type_t type;
     // Input device ID.
     uint32_t               dev_id;
+    // Input device endpoint.
+    uint8_t                endpoint;
     // Input interpreted as navigation.
     bsp_input_t            nav_input;
     // Input value.

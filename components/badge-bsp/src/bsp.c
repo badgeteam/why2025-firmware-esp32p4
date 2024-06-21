@@ -7,7 +7,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
-static char const    TAG[] = "bsp";
 static QueueHandle_t queue;
 
 extern void bsp_platform_init();
@@ -46,14 +45,4 @@ bool bsp_event_wait(bsp_event_t *event_out, uint64_t wait_ms) {
         ticks = pdMS_TO_TICKS(wait_ms);
     }
     return xQueueReceive(queue, event_out, ticks) == pdTRUE;
-}
-
-// Call to notify the BSP of a button press.
-void bsp_raw_button_pressed(uint32_t dev_id, bsp_input_t input) {
-    ESP_LOGI(TAG, "Device 0x%08" PRIx32 " input %d pressed", dev_id, input);
-}
-
-// Call to notify the BSP of a button release.
-void bsp_raw_button_released(uint32_t dev_id, bsp_input_t input) {
-    ESP_LOGI(TAG, "Device 0x%08" PRIx32 " input %d released", dev_id, input);
 }

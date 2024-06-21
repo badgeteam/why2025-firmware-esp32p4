@@ -7,7 +7,7 @@
 
 
 // WHY2025 badge built-in keyboard.
-keymap_t const bsp_keymap_why2025 = {
+bsp_keymap_t const bsp_keymap_why2025 = {
     // The keyboard is a 8x9 grid.
     .max_scancode = 72,
     // Scancode = row*8+col.
