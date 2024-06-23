@@ -33,6 +33,8 @@ bool start_demo = false;
 i2s_chan_handle_t i2s_handle = NULL;
 
 uint8_t volume = 120;
+uint8_t screen_brightness = 51;
+uint8_t keyboard_brightness = 51;
 
 esp_err_t i2s_test() {
     // I2S audio
@@ -102,8 +104,8 @@ esp_err_t i2s_test() {
     return ESP_OK;
 }
 
-esp_err_t sd_test() {
-    esp_err_t ret;
+esp_err_t sd_test(sd_pwr_ctrl_handle_t pwr_ctrl_handle) {
+    esp_err_t res;
 
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
         .format_if_mount_failed = false,
@@ -116,44 +118,35 @@ esp_err_t sd_test() {
     ESP_LOGI(TAG, "Initializing SD card");
 
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
-
-    sd_pwr_ctrl_ldo_config_t ldo_config = {
-        .ldo_chan_id = 4,
-    };
-    sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
-
-    ret = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to create a new on-chip LDO power control driver");
-        return ret;
-    }
     host.pwr_ctrl_handle = pwr_ctrl_handle;
 
-    sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
-
-    slot_config.width = 4;
-
-    slot_config.clk = 43;
-    slot_config.cmd = 44;
-    slot_config.d0 = 39;
-    slot_config.d1 = 40;
-    slot_config.d2 = 41;
-    slot_config.d3 = 42;
-
-    slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+    sdmmc_slot_config_t slot_config = {
+        .clk = GPIO_NUM_43,
+        .cmd = GPIO_NUM_44,
+        .d0 = GPIO_NUM_39,
+        .d1 = GPIO_NUM_40,
+        .d2 = GPIO_NUM_41,
+        .d3 = GPIO_NUM_42,
+        .d4 = GPIO_NUM_NC,
+        .d5 = GPIO_NUM_NC,
+        .d6 = GPIO_NUM_NC,
+        .d7 = GPIO_NUM_NC,
+        .cd = SDMMC_SLOT_NO_CD,
+        .wp = SDMMC_SLOT_NO_WP,
+        .width = 4,
+        .flags = 0,
+    };
 
     ESP_LOGI(TAG, "Mounting filesystem");
-    ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &card);
+    res = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &card);
 
-    if (ret != ESP_OK) {
-        if (ret == ESP_FAIL) {
-            ESP_LOGE(TAG, "Failed to mount filesystem. "
-                     "If you want the card to be formatted, set the EXAMPLE_FORMAT_IF_MOUNT_FAILED menuconfig option.");
+    if (res != ESP_OK) {
+        if (res == ESP_FAIL) {
+            ESP_LOGE(TAG, "Failed to mount SD card filesystem.");
         } else {
-            ESP_LOGE(TAG, "Failed to initialize the card (%s). "
-                     "Make sure SD card lines have pull-up resistors in place.", esp_err_to_name(ret));
+            ESP_LOGE(TAG, "Failed to initialize the SD card (%s). ", esp_err_to_name(res));
         }
-        return ret;
+        return res;
     }
     ESP_LOGI(TAG, "Filesystem mounted");
 
@@ -257,24 +250,95 @@ void draw_key(bsp_input_t input) {
     display_test_flush();
 }
 
+void draw_text(char* text) {
+    pax_buf_t* fb = display_test_get_buf();
+    pax_background(fb, color_background);
+    pax_push_2d(fb);
+    pax_apply_2d(fb, matrix_2d_translate(pax_buf_get_width(fb) / 2, pax_buf_get_height(fb) / 2));
+    pax_center_text(fb, 0xFF000000, &chakrapetchmedium, 50, 0, -25, text);
+    pax_pop_2d(fb);
+    display_test_flush();
+}
+
 int current_key = -1;
 static SemaphoreHandle_t demo_semaphore;
 
 void app_main(void) {
-    display_version();
-    bsp_init();
-    ch32_set_display_backlight(255);
-    bsp_c6_control(true, true);
-    display_test();
 
     demo_semaphore = xSemaphoreCreateBinary();
     xSemaphoreGive(demo_semaphore);
+
+    display_version();
+    bsp_init();
+    ch32_set_display_backlight(screen_brightness*5);
+    ch32_set_keyboard_backlight(keyboard_brightness*5);
+    bsp_c6_control(true, true);
+    //bsp_c6_control(false, true);
+    display_test();
+
+
 
     pax_buf_t clipbuffer;
     pax_buf_init(&clipbuffer, NULL, 800, 480, PAX_BUF_1_PAL);
     //pax_buf_set_orientation(&clipbuffer, PAX_O_ROT_CW);
 
-    sd_test();
+    sd_pwr_ctrl_ldo_config_t ldo_config = {
+        .ldo_chan_id = 4,
+    };
+
+    sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
+    esp_err_t res = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
+    if (res != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create a new on-chip LDO power control driver");
+        return;
+    }
+
+    res = sd_test(pwr_ctrl_handle);
+    if (res != ESP_OK) {
+        char text[128];
+        sprintf(text, "SD card failed:\n%s", esp_err_to_name(res));
+        draw_text(text);
+    } else {
+        draw_text("SD card OK");
+    }
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    /*gpio_config_t swio_config = {
+        .pin_bit_mask = BIT64(22),
+        .mode         = GPIO_MODE_OUTPUT_OD,
+        .pull_up_en   = true,
+        .pull_down_en = false,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    res = gpio_config(&swio_config);
+    if (res != ESP_OK) {
+        return;
+    }
+
+    gpio_config_t swck_config = {
+        .pin_bit_mask = BIT64(23),
+        .mode         = GPIO_MODE_OUTPUT_OD,
+        .pull_up_en   = true,
+        .pull_down_en = false,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    res = gpio_config(&swck_config);
+    if (res != ESP_OK) {
+        return;
+    }
+
+    gpio_set_level(22, 1);
+    gpio_set_level(23, 1);*/
+
+    /*ESP_LOGW(TAG, "TEST PINS");
+    while (1) {
+        gpio_set_level(22, 1);
+        gpio_set_level(23, 0);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        gpio_set_level(22, 0);
+        gpio_set_level(23, 1);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }*/
 
     i2s_test();
 
@@ -319,6 +383,26 @@ void demo_call(bsp_input_t input, bool pressed) {
             volume++;
         }
         es8156_codec_set_voice_volume(volume);
+    } else if (input == 5 && pressed) {
+        if (screen_brightness > 0) {
+            screen_brightness--;
+        }
+    ch32_set_display_backlight(screen_brightness*5);
+    } else if (input == 6 && pressed) {
+        if (screen_brightness < 51) {
+            screen_brightness++;
+        }
+        ch32_set_display_backlight(screen_brightness*5);
+    } else if (input == 7 && pressed) {
+        if (keyboard_brightness > 0) {
+            keyboard_brightness--;
+        }
+        ch32_set_keyboard_backlight(keyboard_brightness*5);
+    } else if (input == 0x18 && pressed) {
+        if (keyboard_brightness < 51) {
+            keyboard_brightness++;
+        }
+        ch32_set_keyboard_backlight(keyboard_brightness*5);
     } else if (pressed) {
         current_key = input;
     } else {

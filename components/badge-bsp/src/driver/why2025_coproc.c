@@ -44,12 +44,14 @@ esp_err_t bsp_why2025_coproc_init() {
         .mode         = GPIO_MODE_INPUT,
         .pull_up_en   = false,
         .pull_down_en = false,
-        .intr_type    = GPIO_INTR_POSEDGE, //GPIO_INTR_NEGEDGE, (Firmware bug in CH32V203 firmware, will be fixed soon)
+        .intr_type    = GPIO_INTR_NEGEDGE,
     };
     res = gpio_config(&sao_cfg);
     if (res != ESP_OK) {
         return res;
     }
+
+    xSemaphoreGive(ch32_int_semaphore); // Workaround for firmware bug in CH32V203 firmware, will be fixed soon
 
     return res;
 }
