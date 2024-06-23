@@ -200,24 +200,33 @@ static esp_err_t bsp_st7701_init(esp_lcd_panel_t *panel) {
     st7701_lcd_init_cmd_t const *init_cmds      = init_sequence;
     uint16_t                     init_cmds_size = sizeof(init_sequence) / sizeof(st7701_lcd_init_cmd_t);
 
+    // printf("Init sequence\n");
     for (int i = 0; i < init_cmds_size; i++) {
+        // printf("Command #%u: %02x with %u params\n", i, init_cmds[i].cmd, init_cmds[i].data_bytes);
         ESP_RETURN_ON_ERROR(
             esp_lcd_panel_io_tx_param(io, init_cmds[i].cmd, init_cmds[i].data, init_cmds[i].data_bytes),
             TAG,
             "send command failed"
         );
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     // TODO: What are these?
+    // printf("Other commands ok\n");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, 0xE8, (uint8_t[]){0x00, 0x0C}, 2), TAG, "send command failed");
+    // vTaskDelay(pdMS_TO_TICKS(10));
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, 0xE8, (uint8_t[]){0x00, 0x00}, 2), TAG, "send command failed");
+    // vTaskDelay(pdMS_TO_TICKS(10));
     ESP_RETURN_ON_ERROR(
         esp_lcd_panel_io_tx_param(io, 0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x00}, 5),
         TAG,
         "send command failed"
     );
+    // vTaskDelay(pdMS_TO_TICKS(10));
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, 0x29, (uint8_t[]){0x00}, 0), TAG, "send command failed");
+    // vTaskDelay(pdMS_TO_TICKS(10));
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, 0x13, (uint8_t[]){0x00}, 0), TAG, "send command failed");
+    // vTaskDelay(pdMS_TO_TICKS(10));
 
     return ESP_OK;
 }

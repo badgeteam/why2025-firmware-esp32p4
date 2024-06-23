@@ -59,7 +59,7 @@ typedef enum {
 } bsp_ep_disp_type_t;
 
 // Common device tree data.
-typedef union bsp_devtree_common   bsp_devtree_common_t;
+typedef struct bsp_devtree_common  bsp_devtree_common_t;
 // GPIO pin mappings.
 typedef struct bsp_pinmap          bsp_pinmap_t;
 // Input device.
@@ -119,7 +119,7 @@ struct bsp_addr {
 };
 
 // Common device tree data.
-union bsp_devtree_common {
+struct bsp_devtree_common {
     // Initialization priority, lowest happens first.
     int        init_prio;
     // Endpoint address.

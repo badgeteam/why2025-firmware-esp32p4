@@ -361,14 +361,14 @@ void bsp_input_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm) {
         rel_shared();
         return;
     }
-    uint8_t bl_ep  = dev->tree->disp_dev[endpoint]->backlight_endpoint;
-    uint8_t bl_idx = dev->tree->disp_dev[endpoint]->backlight_index;
+    uint8_t bl_ep  = dev->tree->input_dev[endpoint]->backlight_endpoint;
+    uint8_t bl_idx = dev->tree->input_dev[endpoint]->backlight_index;
     if (bl_ep >= dev->tree->led_count || bl_idx >= dev->tree->led_count) {
         rel_shared();
         return;
     }
     if (dev->led_drivers[endpoint]) {
-        uint64_t value = bsp_grey16_to_col(dev->tree->disp_dev[endpoint]->pixfmt.color, pwm);
+        uint64_t value = bsp_grey16_to_col(dev->tree->led_dev[endpoint]->ledfmt.color, pwm);
         dev->led_drivers[endpoint]->set_raw(dev, endpoint, idx, value);
         dev->led_drivers[endpoint]->update(dev, endpoint);
     }
@@ -597,7 +597,27 @@ void bsp_disp_update_part(
 
 // Set a device's display backlight.
 void bsp_disp_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm) {
-    // TODO.
+    if (!acq_shared()) {
+        return;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->disp_count) {
+        rel_shared();
+        return;
+    }
+    uint8_t bl_ep  = dev->tree->disp_dev[endpoint]->backlight_endpoint;
+    uint8_t bl_idx = dev->tree->disp_dev[endpoint]->backlight_index;
+    if (bl_ep >= dev->tree->led_count || bl_idx >= dev->tree->led_count) {
+        rel_shared();
+        return;
+    }
+    if (dev->led_drivers[endpoint]) {
+        uint64_t value = bsp_grey16_to_col(dev->tree->led_dev[endpoint]->ledfmt.color, pwm);
+        dev->led_drivers[endpoint]->set_raw(dev, endpoint, idx, value);
+        dev->led_drivers[endpoint]->update(dev, endpoint);
+    }
+    rel_shared();
 }
 
 
@@ -638,11 +658,13 @@ static void button_event_impl(uint32_t dev_id, uint8_t endpoint, int input, bool
 
 // Call to notify the BSP of a button press.
 void bsp_raw_button_pressed(uint32_t dev_id, uint8_t endpoint, int input) {
+    ESP_LOGI(TAG, "Device %" PRIu32 " input endpoint %" PRIu8 " button %d pressed", dev_id, endpoint, input);
     button_event_impl(dev_id, endpoint, input, true, false);
 }
 
 // Call to notify the BSP of a button release.
 void bsp_raw_button_released(uint32_t dev_id, uint8_t endpoint, int input) {
+    ESP_LOGI(TAG, "Device %" PRIu32 " input endpoint %" PRIu8 " button %d released", dev_id, endpoint, input);
     button_event_impl(dev_id, endpoint, input, false, false);
 }
 

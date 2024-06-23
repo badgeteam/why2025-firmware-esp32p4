@@ -31,6 +31,15 @@ bsp_input_devtree_t const input_tree = {
     .backlight_endpoint = 0,
     .backlight_index    = 1,
 };
+bsp_led_devtree_t const led_tree = {
+    .common   = {
+        .type = BSP_EP_LED_WHY2025_CH32,
+    },
+    .num_leds = 2,
+    .ledfmt   = {
+        .color = BSP_PIXFMT_16_GREY,
+    }
+};
 bsp_display_devtree_t const disp_tree = {
     .common = {
         .type      = BSP_EP_DISP_ST7701,
@@ -53,6 +62,10 @@ bsp_devtree_t const tree = {
     .input_dev = (bsp_input_devtree_t const *const[]) {
         &input_tree,
     },
+    .led_count = 1,
+    .led_dev = (bsp_led_devtree_t const *const[]){
+        &led_tree,
+    },
     .disp_count = 1,
     .disp_dev   = (bsp_display_devtree_t const *const[]) {
         &disp_tree,
@@ -69,18 +82,13 @@ void app_main(void) {
     pax_buf_set_orientation(&gfx, PAX_O_ROT_CW);
     pax_background(&gfx, 0);
     pax_draw_text(&gfx, 0xffffffff, pax_font_sky, 36, 0, 0, "Julian Wuz Here");
-    printf("%s:%d\n", __FILENAME__, __LINE__);
 
     uint32_t dev_id = bsp_dev_register(&tree);
-    printf("%s:%d\n", __FILENAME__, __LINE__);
     bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
-    printf("%s:%d\n", __FILENAME__, __LINE__);
 
-    ch32_set_display_backlight(255);
-    // bsp_disp_backlight(dev_id, 0, 65535);
-    // printf("%s:%d\n", __FILENAME__, __LINE__);
+    // ch32_set_display_backlight(255);
+    bsp_disp_backlight(dev_id, 0, 65535);
     // bsp_input_backlight(dev_id, 0, 16384);
-    printf("%s:%d\n", __FILENAME__, __LINE__);
 
     while (true) {
         bsp_event_t event;
