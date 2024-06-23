@@ -10,6 +10,18 @@
 // Internal I²C bus SCL pin.
 #define BSP_I2CINT_SCL_PIN 53
 
+// I²S peripheral number
+#define BSP_I2S_NUM        0
+// I²S MCLK Pin
+#define I2S_MCK_IO         30
+// I²S BCLK Pin
+#define I2S_BCK_IO         29
+// I²S WS Pin
+#define I2S_WS_IO          31
+// I²S DO Pin
+#define I2S_DO_IO          28
+
+
 // Interrupt pin from the CH32V203 to the ESP32P4.
 #define BSP_CH32_IRQ_PIN 49
 // I²C address for the CH32V203.
