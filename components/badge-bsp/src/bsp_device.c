@@ -145,10 +145,9 @@ static void run_init_funcs(bsp_device_t *dev, bool is_deinit) {
         ep_count += dev->tree->ep_counts[i];
     }
 
-    int cur_prio = is_deinit ? INT_MIN : INT_MAX;
+    int thr_prio = is_deinit ? INT_MAX : INT_MIN;
     while (ep_count) {
-        int thr_prio = is_deinit ? INT_MAX : INT_MIN;
-
+        int cur_prio = is_deinit ? INT_MIN : INT_MAX;
         // Get minimum priority.
         for (int i = 0; i < BSP_EP_TYPE_COUNT; i++) {
             for (int j = 0; j < dev->tree->ep_counts[i]; j++) {
@@ -160,6 +159,7 @@ static void run_init_funcs(bsp_device_t *dev, bool is_deinit) {
                 }
             }
         }
+        ESP_LOGD(TAG, "cur=%d, thr=%d, ep_count=%" PRIu16, cur_prio, thr_prio, ep_count);
 
         // Run all matching init functions.
         for (int i = 0; i < BSP_EP_TYPE_COUNT; i++) {
@@ -173,23 +173,25 @@ static void run_init_funcs(bsp_device_t *dev, bool is_deinit) {
                     continue;
                 }
                 if (is_deinit && dev->ep_drivers[i][j]->deinit) {
+                    ESP_LOGD(TAG, "Device %" PRIu32 " %s endpoint %" PRId8 " deinit", dev->id, ep_type_str[i], j);
                     if (!dev->ep_drivers[i][j]->deinit(dev, j)) {
                         ESP_LOGE(
                             TAG,
-                            "Device %s endpoint %" PRId8 " %" PRId32 " deinit failed",
+                            "Device %" PRIu32 " %s endpoint %" PRId8 " deinit failed",
+                            dev->id,
                             ep_type_str[i],
-                            j,
-                            dev->id
+                            j
                         );
                     }
                 } else if (!is_deinit && dev->ep_drivers[i][j]->init) {
+                    ESP_LOGD(TAG, "Device %" PRIu32 " %s endpoint %" PRId8 " init", dev->id, ep_type_str[i], j);
                     if (!dev->ep_drivers[i][j]->init(dev, j)) {
                         ESP_LOGE(
                             TAG,
-                            "Device %s endpoint %" PRId8 " %" PRId32 " init failed",
+                            "Device %" PRIu32 " %s endpoint %" PRId8 " init failed",
+                            dev->id,
                             ep_type_str[i],
-                            j,
-                            dev->id
+                            j
                         );
                     }
                 }

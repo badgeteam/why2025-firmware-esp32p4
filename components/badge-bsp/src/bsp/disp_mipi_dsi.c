@@ -98,7 +98,7 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
     esp_lcd_panel_dev_config_t lcd_config = {
         .bits_per_pixel = 16,
         .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-        .reset_gpio_num = BSP_LCD_RESET_PIN,
+        .reset_gpio_num = dev->tree->disp_dev[endpoint]->common.reset_pin,
         .flags = {
             .reset_active_high = false,
         },

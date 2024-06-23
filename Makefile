@@ -1,4 +1,4 @@
-PORT ?= $(shell find /dev -name 'ttyACM*' -or -name 'ttyUSB*' 2>/dev/null)
+PORT ?= /dev/ttyACM0
 BUILDDIR ?= build
 
 IDF_PATH ?= $(shell pwd)/esp-idf

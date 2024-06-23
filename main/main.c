@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "bsp.h"
+#include "bsp/why2025_coproc.h"
 #include "bsp_device.h"
 #include "hardware/why2025.h"
 #include "pax_gfx.h"
@@ -32,7 +33,8 @@ bsp_input_devtree_t const input_tree = {
 };
 bsp_display_devtree_t const disp_tree = {
     .common = {
-        .type = BSP_EP_DISP_ST7701,
+        .type      = BSP_EP_DISP_ST7701,
+        .reset_pin = 0,
     },
     .pixfmt = {BSP_PIXFMT_16_565RGB, false},
     .h_fp   = BSP_DSI_LCD_HFP,
@@ -58,6 +60,7 @@ bsp_devtree_t const tree = {
 };
 
 void app_main(void) {
+    esp_log_level_set("bsp-device", ESP_LOG_DEBUG);
     display_version();
     bsp_init();
 
@@ -66,12 +69,18 @@ void app_main(void) {
     pax_buf_set_orientation(&gfx, PAX_O_ROT_CW);
     pax_background(&gfx, 0);
     pax_draw_text(&gfx, 0xffffffff, pax_font_sky, 36, 0, 0, "Julian Wuz Here");
+    printf("%s:%d\n", __FILENAME__, __LINE__);
 
     uint32_t dev_id = bsp_dev_register(&tree);
+    printf("%s:%d\n", __FILENAME__, __LINE__);
     bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
+    printf("%s:%d\n", __FILENAME__, __LINE__);
 
-    bsp_disp_backlight(dev_id, 0, 65535);
-    bsp_input_backlight(dev_id, 0, 16384);
+    ch32_set_display_backlight(255);
+    // bsp_disp_backlight(dev_id, 0, 65535);
+    // printf("%s:%d\n", __FILENAME__, __LINE__);
+    // bsp_input_backlight(dev_id, 0, 16384);
+    printf("%s:%d\n", __FILENAME__, __LINE__);
 
     while (true) {
         bsp_event_t event;

@@ -126,6 +126,8 @@ union bsp_devtree_common {
     bsp_addr_t addr;
     // Endpoint type used for driver selection.
     int        type;
+    // Reset pin number, or -1 if none.
+    int        reset_pin;
 };
 
 // GPIO pin mappings.
