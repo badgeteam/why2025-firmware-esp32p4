@@ -20,6 +20,8 @@ static SemaphoreHandle_t ch32_semaphore;
 static TaskHandle_t      ch32_thread_handle;
 static void              ch32_thread();
 static void              ch32_isr(void *arg);
+static uint32_t          ch32_input_dev_id;
+static uint32_t          ch32_input_dev_ep;
 
 // Initialise the co-processor drivers.
 esp_err_t bsp_why2025_coproc_init() {
@@ -44,12 +46,14 @@ esp_err_t bsp_why2025_coproc_init() {
         .mode         = GPIO_MODE_INPUT,
         .pull_up_en   = false,
         .pull_down_en = false,
-        .intr_type    = GPIO_INTR_POSEDGE, // GPIO_INTR_NEGEDGE, (Firmware bug in CH32V203 firmware, will be fixed soon)
+        .intr_type    = GPIO_INTR_NEGEDGE,
     };
     res = gpio_config(&sao_cfg);
     if (res != ESP_OK) {
         return res;
     }
+
+    xSemaphoreGive(ch32_int_semaphore); // Workaround for firmware bug in CH32V203 firmware, will be fixed soon
 
     return res;
 }
@@ -66,9 +70,9 @@ static void ch32_thread() {
     while (true) {
         // Wait for an interrupt to be noticed.
         xSemaphoreTake(ch32_int_semaphore, portMAX_DELAY);
-        xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
 
         // When an interrupt occurs, read buttons from I²C.
+        xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
         esp_err_t res = i2c_master_write_read_device(
             BSP_I2CINT_NUM,
             BSP_CH32_ADDR,
@@ -104,9 +108,9 @@ static void ch32_thread() {
         for (int row = 0; row < 9; row++) {
             for (int col = 0; col < 8; col++) {
                 if (((buttons[row] & ~prev_buttons[row]) >> col) & 1) {
-                    bsp_raw_button_pressed(1, 0, row * 8 + col);
+                    bsp_raw_button_pressed(ch32_input_dev_id, ch32_input_dev_ep, row * 8 + col);
                 } else if (((~buttons[row] & prev_buttons[row]) >> col) & 1) {
-                    bsp_raw_button_released(1, 0, row * 8 + col);
+                    bsp_raw_button_released(ch32_input_dev_id, ch32_input_dev_ep, row * 8 + col);
                 }
             }
         }
@@ -135,34 +139,46 @@ IRAM_ATTR static void ch32_isr(void *arg) {
 }
 
 esp_err_t ch32_set_display_backlight(uint16_t value) {
+    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     uint8_t buffer[3];
-    buffer[0] = 11; // I2C_REG_DISPLAY_BACKLIGHT_0
-    buffer[1] = value & 0xFF;
-    buffer[2] = value >> 8;
-    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    buffer[0]     = 11; // I2C_REG_DISPLAY_BACKLIGHT_0
+    buffer[1]     = value & 0xFF;
+    buffer[2]     = value >> 8;
+    esp_err_t res = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    xSemaphoreGive(ch32_semaphore);
+    return res;
 }
 
 esp_err_t ch32_set_keyboard_backlight(uint16_t value) {
+    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     uint8_t buffer[3];
-    buffer[0] = 13; // I2C_REG_KEYBOARD_BACKLIGHT_0
-    buffer[1] = value & 0xFF;
-    buffer[2] = value >> 8;
-    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    buffer[0]     = 13; // I2C_REG_KEYBOARD_BACKLIGHT_0
+    buffer[1]     = value & 0xFF;
+    buffer[2]     = value >> 8;
+    esp_err_t res = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    xSemaphoreGive(ch32_semaphore);
+    return res;
 }
 
 esp_err_t bsp_c6_control(bool enable, bool boot) {
+    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     uint8_t buffer[2];
-    buffer[0] = 17; // I2C_REG_RADIO_CONTROL
-    buffer[1] = (enable & 1) | ((boot & 1) << 1);
-    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    buffer[0]     = 17; // I2C_REG_RADIO_CONTROL
+    buffer[1]     = (enable & 1) | ((boot & 1) << 1);
+    esp_err_t res = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    xSemaphoreGive(ch32_semaphore);
+    return res;
 }
 
 
 esp_err_t bsp_amplifier_control(bool enable) {
+    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     uint8_t buffer[2];
-    buffer[0] = 16; // I2C_REG_AMPLIFIER_ENABLE
-    buffer[1] = enable ? 1 : 0;
-    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    buffer[0]     = 16; // I2C_REG_AMPLIFIER_ENABLE
+    buffer[1]     = enable ? 1 : 0;
+    esp_err_t res = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    xSemaphoreGive(ch32_semaphore);
+    return res;
 }
 
 
@@ -171,8 +187,8 @@ esp_err_t bsp_amplifier_control(bool enable) {
 
 // GPIO input init function.
 bool bsp_input_why2025ch32_init(bsp_device_t *dev, uint8_t endpoint) {
-    // ch32_input_dev_id = dev->id;
-    // ch32_input_dev_ep = endpoint;
+    ch32_input_dev_id = dev->id;
+    ch32_input_dev_ep = endpoint;
     return true;
 }
 
@@ -181,7 +197,7 @@ bool bsp_input_why2025ch32_get_raw(bsp_device_t *dev, uint8_t endpoint, uint16_t
     uint8_t buttons = 0;
 
     // Read buttons from I²C.
-    ESP_ERROR_CHECK(xSemaphoreTake(ch32_semaphore, pdMS_TO_TICKS(500)));
+    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     i2c_master_write_read_device(
         BSP_I2CINT_NUM,
         BSP_CH32_ADDR,

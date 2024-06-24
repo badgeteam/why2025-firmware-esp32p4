@@ -86,11 +86,15 @@ SemaphoreHandle_t     bsp_dev_mtx;
 // Number of shares currently held.
 static int            bsp_dev_shares;
 // Next device ID to be handed out.
-static uint32_t       next_dev_id = 1;
+static uint32_t       next_dev_id      = 1;
 // Number of registered devices.
-static size_t         devices_len = 0;
+static size_t         devices_len      = 0;
 // Registered devices.
-static bsp_device_t **devices     = NULL;
+static bsp_device_t **devices          = NULL;
+// Per-modkey counter.
+static uint16_t       modkey_count[16] = {0};
+// Current modkey value.
+static uint16_t       modkeys;
 
 // Get the device mutex shared.
 static bool acq_shared() {
@@ -622,6 +626,98 @@ void bsp_disp_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm) {
 
 
 
+// Update modifier keys.
+static void update_modkeys(bsp_input_t input, bool pressed) {
+    int index;
+    switch (input) {
+        default: return;
+        case BSP_INPUT_L_SHIFT: index = 0; break;
+        case BSP_INPUT_R_SHIFT: index = 1; break;
+        case BSP_INPUT_L_CTRL: index = 6; break;
+        case BSP_INPUT_R_CTRL: index = 7; break;
+        case BSP_INPUT_L_ALT: index = 8; break;
+        case BSP_INPUT_R_ALT: index = 9; break;
+        case BSP_INPUT_FUNCTION: index = 11; break;
+        case BSP_INPUT_NUM_LK: index = 12; break;
+        case BSP_INPUT_CAPS_LK: index = 13; break;
+        case BSP_INPUT_SCROLL_LK: index = 15; break;
+    }
+    if (pressed && modkey_count[index] < 65535) {
+        modkey_count[index]++;
+    } else if (!pressed && modkey_count[index]) {
+        modkey_count[index]--;
+    }
+    uint16_t tmp = 0;
+    for (int i = 0; i < 16; i++) {
+        tmp |= (modkey_count[i] > 0) << i;
+    }
+    modkeys = tmp;
+}
+
+// Button event to ASCII value.
+static char input_ascii_impl(bsp_input_t input, uint16_t modkeys) {
+    if (input == BSP_INPUT_BACKSPACE) {
+        return (modkeys & BSP_MODKEY_FN) ? 0x7f : '\b';
+    } else if (input == BSP_INPUT_DELETE) {
+        return 0x7f;
+    } else if (input == BSP_INPUT_ENTER) {
+        return '\n';
+    } else if (input >= BSP_INPUT_KB_A && input <= BSP_INPUT_KB_Z) {
+        bool lowercase = !(modkeys & BSP_MODKEY_SHIFT) ^ !!(modkeys & BSP_MODKEY_CAPS_LK);
+        return lowercase ? (input | 0x20) : input;
+    } else if (!(modkeys & BSP_MODKEY_SHIFT)) {
+        switch (input) {
+            default: return 0;
+            case '`': return '`';
+            case '1': return '1';
+            case '2': return '2';
+            case '3': return '3';
+            case '4': return '4';
+            case '5': return '5';
+            case '6': return '6';
+            case '7': return '7';
+            case '8': return '8';
+            case '9': return '9';
+            case '0': return '0';
+            case '-': return '-';
+            case '=': return '=';
+            case '[': return '[';
+            case ']': return ']';
+            case '\\': return '\\';
+            case ';': return ';';
+            case '\'': return '\'';
+            case ',': return ',';
+            case '.': return '.';
+            case '/': return '/';
+        }
+    } else {
+        switch (input) {
+            default: return 0;
+            case '`': return '~';
+            case '1': return '!';
+            case '2': return '@';
+            case '3': return '#';
+            case '4': return '$';
+            case '5': return '%';
+            case '6': return '^';
+            case '7': return '&';
+            case '8': return '*';
+            case '9': return '(';
+            case '0': return ')';
+            case '-': return '_';
+            case '=': return '+';
+            case '[': return '{';
+            case ']': return '}';
+            case '\\': return '|';
+            case ';': return ':';
+            case '\'': return '"';
+            case ',': return '<';
+            case '.': return '>';
+            case '/': return '?';
+        }
+    }
+}
+
 // Button event implementation.
 static void button_event_impl(uint32_t dev_id, uint8_t endpoint, int input, bool pressed, bool from_isr) {
     if (!from_isr && !acq_shared()) {
@@ -644,10 +740,20 @@ static void button_event_impl(uint32_t dev_id, uint8_t endpoint, int input, bool
     event.input.raw_input = input;
     if (tree->keymap && input < tree->keymap->max_scancode) {
         event.input.input = tree->keymap->keymap[input];
+        update_modkeys(event.input.input, pressed);
+        event.input.text_input = input_ascii_impl(event.input.input, modkeys);
     } else {
         event.input.input = BSP_INPUT_NONE;
     }
-    event.input.nav_input = event.input.input;
+    event.input.modkeys = modkeys;
+    switch (event.input.input) {
+        default: event.input.nav_input = event.input.input; break;
+        case BSP_INPUT_ENTER:
+        case BSP_INPUT_NP_ENTER: event.input.nav_input = BSP_INPUT_ACCEPT; break;
+        case BSP_INPUT_BACKSPACE:
+        case BSP_INPUT_ESCAPE: event.input.nav_input = BSP_INPUT_BACK; break;
+        case BSP_INPUT_TAB: event.input.nav_input = modkeys & BSP_MODKEY_SHIFT ? BSP_INPUT_PREV : BSP_INPUT_NEXT; break;
+    }
     if (from_isr) {
         bsp_event_queue(&event);
     } else {
@@ -658,13 +764,11 @@ static void button_event_impl(uint32_t dev_id, uint8_t endpoint, int input, bool
 
 // Call to notify the BSP of a button press.
 void bsp_raw_button_pressed(uint32_t dev_id, uint8_t endpoint, int input) {
-    ESP_LOGI(TAG, "Device %" PRIu32 " input endpoint %" PRIu8 " button %d pressed", dev_id, endpoint, input);
     button_event_impl(dev_id, endpoint, input, true, false);
 }
 
 // Call to notify the BSP of a button release.
 void bsp_raw_button_released(uint32_t dev_id, uint8_t endpoint, int input) {
-    ESP_LOGI(TAG, "Device %" PRIu32 " input endpoint %" PRIu8 " button %d released", dev_id, endpoint, input);
     button_event_impl(dev_id, endpoint, input, false, false);
 }
 

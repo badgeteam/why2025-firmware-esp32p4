@@ -84,6 +84,10 @@ monitor:
 openocd:
 	source "$(IDF_PATH)/export.sh" && idf.py openocd
 
+.PHONY: gdb
+gdb:
+	source "$(IDF_PATH)/export.sh" && idf.py gdb
+
 # Tools
 
 .PHONY: size

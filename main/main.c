@@ -6,6 +6,7 @@
 #include "bsp_device.h"
 #include "hardware/why2025.h"
 #include "pax_gfx.h"
+#include "pax_gui.h"
 
 #include <stdio.h>
 
@@ -30,6 +31,17 @@ bsp_input_devtree_t const input_tree = {
     .keymap             = &bsp_keymap_why2025,
     .backlight_endpoint = 0,
     .backlight_index    = 1,
+};
+bsp_input_devtree_t const input2_tree = {
+    .common   = {
+        .type = BSP_EP_INPUT_GPIO,
+    },
+    .category = BSP_INPUT_CAT_GENERIC,
+    .pinmap   = &(bsp_pinmap_t const) {
+        .pins_len  = 1,
+        .pins      = (uint8_t const[]) {35},
+        .activelow = false,
+    },
 };
 bsp_led_devtree_t const led_tree = {
     .common   = {
@@ -58,9 +70,10 @@ bsp_display_devtree_t const disp_tree = {
     .backlight_index    = 0,
 };
 bsp_devtree_t const tree = {
-    .input_count = 1,
+    .input_count = 2,
     .input_dev = (bsp_input_devtree_t const *const[]) {
         &input_tree,
+        &input2_tree,
     },
     .led_count = 1,
     .led_dev = (bsp_led_devtree_t const *const[]){
@@ -72,23 +85,58 @@ bsp_devtree_t const tree = {
     },
 };
 
-void app_main(void) {
+pgui_grid_t gui = PGUI_NEW_GRID(
+    10,
+    10,
+    216,
+    100,
+    2,
+    3,
+
+    &PGUI_NEW_LABEL("Row 1"),
+    &PGUI_NEW_TEXTBOX(),
+
+    &PGUI_NEW_LABEL("Row 2"),
+    &PGUI_NEW_BUTTON("Hello,"),
+
+    &PGUI_NEW_LABEL("Row 2"),
+    &PGUI_NEW_BUTTON("World!")
+);
+
+// void nop_func(pax_buf_t *gfx, pax_vec2i pos, pgui_elem_t *elem, pgui_theme_t const *theme, uint32_t flags) {
+//     pax_draw_circle(gfx, 0xff000000, pos.x, pos.y, 10);
+//     pax_draw_circle(gfx, 0xffff0000, pos.x + 2, pos.y, 10);
+// }
+
+// pgui_type_t testtype = {
+//     .attr = PGUI_ATTR_BUTTON,
+//     .draw = nop_func,
+// };
+
+// pgui_elem_t gui = {
+//     .type = &testtype,
+//     .pos  = {10, 10},
+//     .size = {100, 30},
+// };
+
+pax_buf_t gfx;
+void      app_main(void) {
     esp_log_level_set("bsp-device", ESP_LOG_DEBUG);
     display_version();
     bsp_init();
 
-    pax_buf_t gfx;
     pax_buf_init(&gfx, NULL, BSP_DSI_LCD_H_RES, BSP_DSI_LCD_V_RES, PAX_BUF_16_565RGB);
     pax_buf_set_orientation(&gfx, PAX_O_ROT_CW);
     pax_background(&gfx, 0);
-    pax_draw_text(&gfx, 0xffffffff, pax_font_sky, 36, 0, 0, "Julian Wuz Here");
+    pax_buf_reversed(&gfx, false);
 
     uint32_t dev_id = bsp_dev_register(&tree);
-    bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
-
-    // ch32_set_display_backlight(255);
     bsp_disp_backlight(dev_id, 0, 65535);
-    // bsp_input_backlight(dev_id, 0, 16384);
+
+    pgui_calc_layout(pax_buf_get_dims(&gfx), &gui, NULL);
+    pax_background(&gfx, pgui_theme_default.bg_col);
+    pgui_draw(&gfx, &gui, NULL);
+    bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
 
     while (true) {
         bsp_event_t event;
@@ -100,13 +148,27 @@ void app_main(void) {
             };
             ESP_LOGI(
                 "main",
-                "Dev %" PRIu32 " ep %" PRIu8 " input %d raw input %d %s",
+                "Dev %" PRIu32 " ep %" PRIu8 " input %d nav input %d raw input %d %s modkey %04" PRIx32,
                 event.input.dev_id,
                 event.input.endpoint,
                 event.input.input,
+                event.input.nav_input,
                 event.input.raw_input,
-                tab[event.input.type]
+                tab[event.input.type],
+                event.input.modkeys
             );
+            pgui_event_t p_event = {
+                     .type    = event.input.type,
+                     .input   = event.input.nav_input,
+                     .value   = event.input.text_input,
+                     .modkeys = event.input.modkeys,
+            };
+            pgui_resp_t resp = pgui_event(pax_buf_get_dims(&gfx), &gui, NULL, p_event);
+            ESP_LOGI("main", "Resp: %d", resp);
+            if (resp) {
+                pgui_redraw(&gfx, &gui, NULL);
+                bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
+            }
         }
     }
 }
