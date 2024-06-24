@@ -662,6 +662,8 @@ static char input_ascii_impl(bsp_input_t input, uint16_t modkeys) {
         return 0x7f;
     } else if (input == BSP_INPUT_ENTER) {
         return '\n';
+    } else if (input == BSP_INPUT_SPACE) {
+        return ' ';
     } else if (input >= BSP_INPUT_KB_A && input <= BSP_INPUT_KB_Z) {
         bool lowercase = !(modkeys & BSP_MODKEY_SHIFT) ^ !!(modkeys & BSP_MODKEY_CAPS_LK);
         return lowercase ? (input | 0x20) : input;
