@@ -305,10 +305,25 @@ void rvswd_test(void) {
 
         // Read status
         uint32_t value = 0;
-        rvswd_read(&handle, 0x11, &value);
+        res = rvswd_read(&handle, 0x11, &value);
+        if (res == RVSWD_OK) {
+            printf("Status after halt: %08" PRIx32 "\n", value);
+        } else {
+            ESP_LOGE(TAG, "Status error %u!", res);
+        }
 
-        printf("Status: %08" PRIx32 "\n", value);
+        // Resume
+        rvswd_write(&handle, 0x10, 0x40000001);
+        rvswd_write(&handle, 0x10, 0x40000001);
 
+        // Read status
+        value = 0;
+        res = rvswd_read(&handle, 0x11, &value);
+        if (res == RVSWD_OK) {
+            printf("Status after resume: %08" PRIx32 "\n", value);
+        } else {
+            ESP_LOGE(TAG, "Status error %u!", res);
+        }
 
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -328,11 +343,11 @@ void app_main(void) {
     //bsp_c6_control(false, true);
     display_test();
 
-    /*
+
     draw_text("RVSWD TEST");
     ch32_set_keyboard_backlight(0);
     rvswd_test();
-    */
+
 
     pax_buf_t clipbuffer;
     pax_buf_init(&clipbuffer, NULL, 800, 480, PAX_BUF_1_PAL);

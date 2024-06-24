@@ -1,3 +1,9 @@
+/**
+ * Copyright (c) 2024 Nicolai Electronics
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #pragma once
 
 #include <stdint.h>
