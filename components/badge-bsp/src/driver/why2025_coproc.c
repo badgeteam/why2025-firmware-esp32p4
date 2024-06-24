@@ -141,7 +141,7 @@ esp_err_t ch32_set_display_backlight(uint16_t value) {
     buffer[0] = 11; // I2C_REG_DISPLAY_BACKLIGHT_0
     buffer[1] = value & 0xFF;
     buffer[2] = value >> 8;
-    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), pdMS_TO_TICKS(50));
 }
 
 esp_err_t ch32_set_keyboard_backlight(uint16_t value) {
@@ -149,14 +149,14 @@ esp_err_t ch32_set_keyboard_backlight(uint16_t value) {
     buffer[0] = 13; // I2C_REG_KEYBOARD_BACKLIGHT_0
     buffer[1] = value & 0xFF;
     buffer[2] = value >> 8;
-    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), pdMS_TO_TICKS(50));
 }
 
 esp_err_t bsp_c6_control(bool enable, bool boot) {
     uint8_t buffer[2];
     buffer[0] = 17; // I2C_REG_RADIO_CONTROL
     buffer[1] = (enable & 1) | ((boot & 1) << 1);
-    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), pdMS_TO_TICKS(50));
 }
 
 
@@ -164,5 +164,5 @@ esp_err_t bsp_amplifier_control(bool enable) {
     uint8_t buffer[2];
     buffer[0] = 16; // I2C_REG_AMPLIFIER_ENABLE
     buffer[1] = enable ? 1 : 0;
-    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), pdMS_TO_TICKS(50));
 }

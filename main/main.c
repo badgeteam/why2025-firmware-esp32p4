@@ -20,6 +20,7 @@
 #include "driver/sdmmc_host.h"
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
 #include "fonts/chakrapetchmedium.h"
+#include "rvswd.h"
 
 static char const *TAG = "main";
 
@@ -263,6 +264,57 @@ void draw_text(char* text) {
 int current_key = -1;
 static SemaphoreHandle_t demo_semaphore;
 
+void blink_keyboard() {
+    for (uint8_t i = 0; i < 3; i++) {
+        ch32_set_keyboard_backlight(255);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        ch32_set_keyboard_backlight(0);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+void rvswd_test(void) {
+    rvswd_result_t res;
+
+    rvswd_handle_t handle = {
+        .swdio = 22,
+        .swclk = 23,
+    };
+
+    res = rvswd_init(&handle);
+
+    if (res == RVSWD_OK) {
+        ESP_LOGI(TAG, "Init OK!");
+    } else {
+        ESP_LOGE(TAG, "Init error %u!", res);
+    }
+
+    res = rvswd_reset(&handle);
+
+    if (res == RVSWD_OK) {
+        ESP_LOGI(TAG, "Reset OK!");
+    } else {
+        ESP_LOGE(TAG, "Reset error %u!", res);
+    }
+
+    while (1) {
+
+        // Halt
+        rvswd_write(&handle, 0x10, 0x80000001);
+        rvswd_write(&handle, 0x10, 0x80000001);
+
+        // Read status
+        uint32_t value = 0;
+        rvswd_read(&handle, 0x11, &value);
+
+        printf("Status: %08" PRIx32 "\n", value);
+
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
+}
+
 void app_main(void) {
 
     demo_semaphore = xSemaphoreCreateBinary();
@@ -276,7 +328,11 @@ void app_main(void) {
     //bsp_c6_control(false, true);
     display_test();
 
-
+    /*
+    draw_text("RVSWD TEST");
+    ch32_set_keyboard_backlight(0);
+    rvswd_test();
+    */
 
     pax_buf_t clipbuffer;
     pax_buf_init(&clipbuffer, NULL, 800, 480, PAX_BUF_1_PAL);
