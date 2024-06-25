@@ -21,6 +21,8 @@ typedef enum {
     BSP_EP_LED,
     // Display devices.
     BSP_EP_DISP,
+    // Audio devices.
+    BSP_EP_AUDIO,
     // Number of endpoint types.
     BSP_EP_TYPE_COUNT,
 } bsp_ep_type_t;
@@ -37,39 +39,48 @@ typedef enum {
 
 // Supported bus types.
 typedef enum {
-    // MIPI DSI.
-    BSP_BUS_MIPIDSI
+    BSP_BUS_I2C,
+    BSP_BUS_SPI,
+    BSP_BUS_I2S,
+    BSP_BUS_MIPIDSI,
 } bsp_bus_type_t;
 
-// Input device types.
+// Input endpoint types.
 typedef enum {
     BSP_EP_INPUT_GPIO,
     BSP_EP_INPUT_WHY2025_CH32,
 } bsp_ep_input_type_t;
 
-// LED device types.
+// LED endpoint types.
 typedef enum {
     BSP_EP_LED_WS2812,
     BSP_EP_LED_WHY2025_CH32,
 } bsp_ep_led_type_t;
 
-// Display types.
+// Display endpoint types.
 typedef enum {
     BSP_EP_DISP_ST7701,
 } bsp_ep_disp_type_t;
+
+// Audio endpoint types.
+typedef enum {
+    BSP_EP_AUDIO_ES8156,
+} bsp_ep_audio_type_t;
 
 // Common device tree data.
 typedef struct bsp_devtree_common  bsp_devtree_common_t;
 // GPIO pin mappings.
 typedef struct bsp_pinmap          bsp_pinmap_t;
-// Input device.
+// Input device tree data.
 typedef struct bsp_input_devtree   bsp_input_devtree_t;
 // Display / LED pixel format.
 typedef struct bsp_led_desc        bsp_led_desc_t;
-// LED device.
+// LED device tree data.
 typedef struct bsp_led_devtree     bsp_led_devtree_t;
-// Display device.
+// Display device tree data.
 typedef struct bsp_display_devtree bsp_display_devtree_t;
+// Audio device tree data.
+typedef struct bsp_audio_devtree   bsp_audio_devtree_t;
 // Device descriptor.
 typedef union bsp_devtree          bsp_devtree_t;
 
@@ -81,6 +92,8 @@ typedef struct bsp_input_driver  bsp_input_driver_t;
 typedef struct bsp_led_driver    bsp_led_driver_t;
 // Display driver functions.
 typedef struct bsp_disp_driver   bsp_disp_driver_t;
+// Audio driver functions.
+typedef struct bsp_audio_driver  bsp_audio_driver_t;
 
 // Device address.
 typedef struct bsp_addr   bsp_addr_t;
@@ -140,7 +153,7 @@ struct bsp_pinmap {
     uint8_t const *pins;
 };
 
-// Input device.
+// Input device tree data.
 struct bsp_input_devtree {
     // Common device tree data.
     bsp_devtree_common_t common;
@@ -164,7 +177,7 @@ struct bsp_led_desc {
     bool         reversed;
 };
 
-// LED device.
+// LED device tree data.
 struct bsp_led_devtree {
     // Common device tree data.
     bsp_devtree_common_t common;
@@ -174,7 +187,7 @@ struct bsp_led_devtree {
     uint16_t             num_leds;
 };
 
-// Display device.
+// Display device tree data.
 struct bsp_display_devtree {
     // Common device tree data.
     bsp_devtree_common_t common;
@@ -204,21 +217,31 @@ struct bsp_display_devtree {
     uint8_t  v_sync;
 };
 
+// Audio device tree data.
+struct bsp_audio_devtree {
+    // Common device tree data.
+    bsp_devtree_common_t common;
+};
+
 // Device descriptor.
 union bsp_devtree {
     struct {
         // Number of input endpoints.
         uint8_t                             input_count;
-        // Number of LED string endpoints.
+        // Number of LED endpoints.
         uint8_t                             led_count;
-        // Number of display device endpoints.
+        // Number of display endpoints.
         uint8_t                             disp_count;
-        // Input device.
+        // Number of audio endpoints.
+        uint8_t                             audio_count;
+        // Input endpoint trees.
         bsp_input_devtree_t const *const   *input_dev;
-        // LED string device.
+        // LED endpoint trees.
         bsp_led_devtree_t const *const     *led_dev;
-        // Display device.
+        // Display endpoint trees.
         bsp_display_devtree_t const *const *disp_dev;
+        // Audio endpoint trees.
+        bsp_audio_devtree_t const *const   *audio_dev;
     };
     struct {
         // Endpoint counts by type.
@@ -270,6 +293,12 @@ struct bsp_disp_driver {
     bsp_disp_update_part_t update_part;
 };
 
+// Audio driver functions.
+struct bsp_audio_driver {
+    // Common driver functions.
+    bsp_driver_common_t common;
+};
+
 // Registered device.
 struct bsp_device {
     // BSP device ID.
@@ -284,6 +313,8 @@ struct bsp_device {
             bsp_led_driver_t const   **led_drivers;
             // Drivers for display endpoints.
             bsp_disp_driver_t const  **disp_drivers;
+            // Drivers for audio endpoints.
+            bsp_audio_driver_t const **audio_drivers;
         };
         // Drivers per endpoint type.
         bsp_driver_common_t const **ep_drivers[BSP_EP_TYPE_COUNT];
@@ -296,6 +327,8 @@ struct bsp_device {
             void **led_aux;
             // Auxiliary driver data for display endpoints.
             void **disp_aux;
+            // Auxiliary driver data for audio endpoints.
+            void **audio_aux;
         };
         // Auxiliary driver data per endpoint type.
         void **ep_aux[BSP_EP_TYPE_COUNT];
