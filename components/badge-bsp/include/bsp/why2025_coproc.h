@@ -17,3 +17,4 @@ esp_err_t ch32_set_display_backlight(uint16_t value);
 esp_err_t ch32_set_keyboard_backlight(uint16_t value);
 esp_err_t bsp_c6_control(bool enable, bool boot);
 esp_err_t bsp_amplifier_control(bool enable);
+esp_err_t ch32_get_firmware_version(uint16_t* value);

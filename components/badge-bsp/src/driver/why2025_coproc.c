@@ -166,3 +166,15 @@ esp_err_t bsp_amplifier_control(bool enable) {
     buffer[1] = enable ? 1 : 0;
     return i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), pdMS_TO_TICKS(50));
 }
+
+esp_err_t ch32_get_firmware_version(uint16_t* value) {
+    return i2c_master_write_read_device(
+        BSP_I2CINT_NUM,
+        BSP_CH32_ADDR,
+        (uint8_t[]){0}, // Firmware version register
+        1,
+        (uint8_t*) value,
+        2,
+        pdMS_TO_TICKS(50)
+    );
+}
