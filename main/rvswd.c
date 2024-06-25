@@ -41,40 +41,40 @@ rvswd_result_t rvswd_start(rvswd_handle_t* handle) {
     // Start with both lines high
     gpio_set_level(handle->swdio, true);
     gpio_set_level(handle->swclk, true);
-    ets_delay_us(25);
+    ets_delay_us(2);
 
     // Pull data low
     gpio_set_level(handle->swdio, false);
     gpio_set_level(handle->swclk, true);
-    ets_delay_us(10);
+    ets_delay_us(1);
 
     // Pull clock low
     gpio_set_level(handle->swdio, false);
     gpio_set_level(handle->swclk, false);
-    ets_delay_us(10);
+    ets_delay_us(1);
     return RVSWD_OK;
 }
 
 rvswd_result_t rvswd_stop(rvswd_handle_t* handle) {
     // Pull data low
     gpio_set_level(handle->swdio, false);
-    ets_delay_us(10);
+    ets_delay_us(1);
     gpio_set_level(handle->swclk, true);
-    ets_delay_us(25);
+    ets_delay_us(2);
     // Let data float high
     gpio_set_level(handle->swdio, true);
-    ets_delay_us(10);
+    ets_delay_us(1);
     return RVSWD_OK;
 }
 
 rvswd_result_t rvswd_reset(rvswd_handle_t* handle) {
     gpio_set_level(handle->swdio, true);
-    ets_delay_us(10);
+    ets_delay_us(1);
     for (uint8_t i = 0; i < 100; i++) {
         gpio_set_level(handle->swclk, false);
-        ets_delay_us(10);
+        ets_delay_us(1);
         gpio_set_level(handle->swclk, true);
-        ets_delay_us(10);
+        ets_delay_us(1);
     }
     return rvswd_stop(handle);
 }
@@ -82,18 +82,18 @@ rvswd_result_t rvswd_reset(rvswd_handle_t* handle) {
 void rvswd_write_bit(rvswd_handle_t* handle, bool value) {
     gpio_set_level(handle->swdio, value);
     gpio_set_level(handle->swclk, false);
-    ets_delay_us(10);
+    ets_delay_us(1);
     gpio_set_level(handle->swclk, true); // Data is sampled on rising edge of clock
-    ets_delay_us(10);
+    ets_delay_us(1);
     gpio_set_level(handle->swclk, false);
 }
 
 bool rvswd_read_bit(rvswd_handle_t* handle) {
     gpio_set_level(handle->swdio, true);
     gpio_set_level(handle->swclk, false);
-    ets_delay_us(10);
+    ets_delay_us(1);
     gpio_set_level(handle->swclk, true); // Data is output on rising edge of clock
-    ets_delay_us(10);
+    ets_delay_us(1);
     bool res = gpio_get_level(handle->swdio);
     gpio_set_level(handle->swclk, false);
     return res;
@@ -151,7 +151,7 @@ rvswd_result_t rvswd_read(rvswd_handle_t* handle, uint8_t reg, uint32_t* value) 
     rvswd_start(handle);
 
     // ADDR HOST
-    parity = false; // This time it's odd parity?
+    parity = false;
     for (uint8_t position = 0; position < 7; position++) {
         bool bit = (reg >> (6 - position)) & 1;
         rvswd_write_bit(handle, bit);
@@ -173,7 +173,7 @@ rvswd_result_t rvswd_read(rvswd_handle_t* handle, uint8_t reg, uint32_t* value) 
     *value = 0;
 
     // Data
-    parity = false; // This time it's even parity?
+    parity = false;
     for (uint8_t position = 0; position < 32; position++) {
         bool bit = rvswd_read_bit(handle);
         if (bit) {

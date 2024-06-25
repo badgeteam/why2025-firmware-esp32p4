@@ -503,8 +503,6 @@ static void ch32_wait_flash(rvswd_handle_t* handle) {
     uint32_t value = 0;
     ch32_read_memory_word(handle, CH32_FLASH_STATR, &value);
 
-    printf("Wait for operation to complete...\r\n");
-
     while (value & CH32_FLASH_STATR_BUSY) {
         vTaskDelay(1);
         ch32_read_memory_word(handle, CH32_FLASH_STATR, &value);
@@ -515,7 +513,6 @@ static void ch32_wait_flash_write(rvswd_handle_t* handle) {
     uint32_t value = 0;
     ch32_read_memory_word(handle, CH32_FLASH_STATR, &value);
     while (value & CH32_FLASH_STATR_WRBUSY) {
-        vTaskDelay(1);
         ch32_read_memory_word(handle, CH32_FLASH_STATR, &value);
     }
 }
@@ -527,11 +524,11 @@ bool ch32_unlock_flash(rvswd_handle_t* handle) {
 
     printf("CTLR before unlock: %08" PRIx32 "\r\n", ctlr);
 
-    if (!(ctlr & 0x8080)) {
+    /*if (!(ctlr & 0x8080)) {
         // FLASH already unlocked.
         printf("Already unlocked\r\n");
         return true;
-    }
+    }*/
 
     // Enter the unlock keys.
     ch32_write_memory_word(handle, 0x40022004, 0x45670123);
@@ -575,16 +572,13 @@ bool ch32_write_flash_block(rvswd_handle_t* handle, uint32_t addr, const void* d
     uint32_t wdata[64];
     memcpy(wdata, data, sizeof(wdata));
     for (size_t i = 0; i < 64; i++) {
-        printf("Writing 0x%08" PRIx32 ": 0x%08" PRIx32 "...\r\n", addr + i * 4, wdata[i]);
         ch32_write_memory_word(handle, addr + i * 4, wdata[i]);
         ch32_wait_flash_write(handle);
     }
 
-    printf("Start programming...\r\n");
     ch32_write_memory_word(handle, CH32_FLASH_CTLR, CH32_FLASH_CTLR_FTPG | CH32_FLASH_CTLR_PGSTRT);
     ch32_wait_flash(handle);
     ch32_write_memory_word(handle, CH32_FLASH_CTLR, 0);
-    printf("Done programming\r\n");
     vTaskDelay(1);
 
     uint32_t rdata[64];
@@ -616,15 +610,21 @@ bool ch32_write_flash(rvswd_handle_t* handle, uint32_t addr, const void* _data, 
 
     const uint8_t* data = _data;
 
+    char buffer[256];
+
     for (size_t i = 0; i < data_len; i += 256) {
         vTaskDelay(0);
-        printf("Erasing 0x%08" PRIx32"...\r\n", addr + i);
+        sprintf(buffer, "Erasing 0x%08" PRIx32"...\r\n", addr + i);
+        printf("%s", buffer);
+        draw_text(buffer);
         if (!ch32_erase_flash_block(handle, addr + i)) {
             ESP_LOGE(TAG, "Error: Failed to erase FLASH at %08" PRIx32, addr + i);
             return false;
         }
 
-        printf("Writing 0x%08" PRIx32"...\r\n", addr + i);
+        sprintf(buffer, "Writing 0x%08" PRIx32"...\r\n", addr + i);
+        printf("%s", buffer);
+        draw_text(buffer);
         if (!ch32_write_flash_block(handle, addr + i, data + i)) {
             ESP_LOGE(TAG, "Error: Failed to write FLASH at %08" PRIx32, addr + i);
             return false;
@@ -644,20 +644,27 @@ void rvswd_test(void) {
 
     res = rvswd_init(&handle);
 
+    draw_text("Initializing RVSWD...");
+
     if (res != RVSWD_OK) {
+        draw_text("Failed to initialize");
         ESP_LOGE(TAG, "Init error %u!", res);
         return;
     }
 
+    draw_text("Reset RVSWD...");
     res = rvswd_reset(&handle);
 
     if (res != RVSWD_OK) {
+        draw_text("Failed to reset");
         ESP_LOGE(TAG, "Reset error %u!", res);
         return;
     }
 
+    draw_text("Halt coprocessor...");
     res = ch32_halt_microprocessor(&handle);
     if (res != RVSWD_OK) {
+        draw_text("Failed to halt");
         ESP_LOGE(TAG, "Failed to halt");
         return;
     }
@@ -666,17 +673,29 @@ void rvswd_test(void) {
 
     printf("Unlock: %s\r\n", bool_res ? "yes" : "no");
 
+    if (!bool_res) {
+        draw_text("Failed to unlock");
+        ESP_LOGE(TAG, "Failed to unlock");
+        return;
+    }
+
+    draw_text("Flashing coprocessor...");
     bool_res = ch32_write_flash(&handle, 0x08000000, ch32_firmware_start, ch32_firmware_end - ch32_firmware_start);
     if (!bool_res) {
+        draw_text("Failed to flash");
         ESP_LOGE(TAG, "Failed to write flash");
         return;
     }
 
+    draw_text("Booting coprocessor...");
     res = ch32_reset_microprocessor_and_run(&handle);
     if (res != RVSWD_OK) {
+        draw_text("Failed to boot");
         ESP_LOGE(TAG, "Failed to reset and run");
         return;
     }
+
+    draw_text("Coprocessor ready!");
 
     ESP_LOGI(TAG, "Okay!");
 
@@ -729,27 +748,25 @@ void app_main(void) {
 
     display_version();
     bsp_init();
+    display_test();
 
     rvswd_test();
 
     uint16_t version;
-    while (1) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        ch32_get_firmware_version(&version);
-        printf("Firmware version %"PRIu16"\r\n", version);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ch32_get_firmware_version(&version);
+    printf("Firmware version %"PRIu16"\r\n", version);
+
+    if (version != 2) {
+        while (1) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
     }
 
     ch32_set_display_backlight(screen_brightness*5);
     ch32_set_keyboard_backlight(keyboard_brightness*5);
     bsp_c6_control(true, true);
     //bsp_c6_control(false, true);
-    display_test();
-
-
-    draw_text("RVSWD TEST");
-    ch32_set_keyboard_backlight(0);
-    
-
 
     pax_buf_t clipbuffer;
     pax_buf_init(&clipbuffer, NULL, 800, 480, PAX_BUF_1_PAL);
