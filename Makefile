@@ -58,6 +58,7 @@ fullclean:
 # Building
 
 build/badge_export_symbols.cmake: tools/exported.txt tools/symbol_export.py
+	mkdir -p build
 	./tools/symbol_export.py --symbols tools/exported.txt --cmake build/badge_export_symbols.cmake
 
 .PHONY: build
