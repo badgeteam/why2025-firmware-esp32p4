@@ -57,9 +57,15 @@ fullclean:
 
 # Building
 
+build/badge_export_symbols.cmake: tools/exported.txt tools/symbol_export.py
+	./tools/symbol_export.py --symbols tools/exported.txt --cmake build/badge_export_symbols.cmake
+
 .PHONY: build
-build:
-	source "$(IDF_PATH)/export.sh" && idf.py build
+build: build/badge_export_symbols.cmake
+	source "$(IDF_PATH)/export.sh" && \
+		idf.py build && \
+		./tools/symbol_export.py --symbols tools/exported.txt --binary build/why2025-firmware-esp32p4.elf \
+			--assembler riscv32-esp-elf-gcc --table build/badge_jump_table.elf --address 0x43F80000
 
 .PHONY: image
 image:

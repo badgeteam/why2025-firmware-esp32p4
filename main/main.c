@@ -103,22 +103,6 @@ pgui_grid_t gui = PGUI_NEW_GRID(
     &PGUI_NEW_BUTTON("World!")
 );
 
-// void nop_func(pax_buf_t *gfx, pax_vec2i pos, pgui_elem_t *elem, pgui_theme_t const *theme, uint32_t flags) {
-//     pax_draw_circle(gfx, 0xff000000, pos.x, pos.y, 10);
-//     pax_draw_circle(gfx, 0xffff0000, pos.x + 2, pos.y, 10);
-// }
-
-// pgui_type_t testtype = {
-//     .attr = PGUI_ATTR_BUTTON,
-//     .draw = nop_func,
-// };
-
-// pgui_elem_t gui = {
-//     .type = &testtype,
-//     .pos  = {10, 10},
-//     .size = {100, 30},
-// };
-
 pax_buf_t gfx;
 void      app_main(void) {
     esp_log_level_set("bsp-device", ESP_LOG_DEBUG);
@@ -133,9 +117,9 @@ void      app_main(void) {
     uint32_t dev_id = bsp_dev_register(&tree);
     bsp_disp_backlight(dev_id, 0, 65535);
 
-    pgui_calc_layout(pax_buf_get_dims(&gfx), &gui, NULL);
+    pgui_calc_layout(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL);
     pax_background(&gfx, pgui_theme_default.bg_col);
-    pgui_draw(&gfx, &gui, NULL);
+    pgui_draw(&gfx, (pgui_elem_t *)&gui, NULL);
     bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
 
     while (true) {
@@ -163,10 +147,10 @@ void      app_main(void) {
                      .value   = event.input.text_input,
                      .modkeys = event.input.modkeys,
             };
-            pgui_resp_t resp = pgui_event(pax_buf_get_dims(&gfx), &gui, NULL, p_event);
+            pgui_resp_t resp = pgui_event(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL, p_event);
             ESP_LOGI("main", "Resp: %d", resp);
             if (resp) {
-                pgui_redraw(&gfx, &gui, NULL);
+                pgui_redraw(&gfx, (pgui_elem_t *)&gui, NULL);
                 bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
             }
         }
