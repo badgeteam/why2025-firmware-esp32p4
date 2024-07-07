@@ -88,7 +88,6 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
         .lcd_cmd_bits    = 8,
         .lcd_param_bits  = 8,
     };
-    ESP_LOGI(TAG, "%s:%d", __FILENAME__, __LINE__);
     res = esp_lcd_new_panel_io_dbi(disp->bus_handle, &dbi_config, &disp->io_handle);
     if (res != ESP_OK) {
         goto error2;
@@ -98,26 +97,22 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
     esp_lcd_panel_dev_config_t lcd_config = {
         .bits_per_pixel = 16,
         .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-        .reset_gpio_num = BSP_LCD_RESET_PIN,
+        .reset_gpio_num = dev->tree->disp_dev[endpoint]->common.reset_pin,
         .flags = {
             .reset_active_high = false,
         },
     };
-    ESP_LOGI(TAG, "%s:%d", __FILENAME__, __LINE__);
     if ((res = new_fun(disp->io_handle, &lcd_config, &disp->ctrl_handle)) != ESP_OK) {
         goto error3;
     }
 
     // Turn on the display.
-    ESP_LOGI(TAG, "%s:%d", __FILENAME__, __LINE__);
     if ((res = esp_lcd_panel_reset(disp->ctrl_handle)) != ESP_OK) {
         goto error3;
     }
-    ESP_LOGI(TAG, "%s:%d", __FILENAME__, __LINE__);
     if ((res = esp_lcd_panel_init(disp->ctrl_handle)) != ESP_OK) {
         goto error3;
     }
-    ESP_LOGI(TAG, "%s:%d", __FILENAME__, __LINE__);
     if ((res = esp_lcd_panel_disp_on_off(disp->ctrl_handle, true)) != ESP_OK) {
         goto error3;
     }
@@ -139,7 +134,7 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
             .vsync_front_porch = dev->tree->disp_dev[endpoint]->v_fp,
         },
         // TODO: Figure out what this is and when to use it.
-        // .flags.use_dma2d = true,
+        .flags.use_dma2d = true,
     };
     if ((res = esp_lcd_new_panel_dpi(disp->bus_handle, &dpi_config, &disp->disp_handle)) != ESP_OK) {
         goto error4;

@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 #include "bsp.h"
+#include "bsp/why2025_coproc.h"
 #include "bsp_device.h"
 #include "hardware/why2025.h"
 #include "pax_gfx.h"
+#include "pax_gui.h"
 
 #include <stdio.h>
 
@@ -23,20 +25,37 @@ void display_version() {
 
 bsp_input_devtree_t const input_tree = {
     .common = {
+        .type = BSP_EP_INPUT_WHY2025_CH32,
+    },
+    .category           = BSP_INPUT_CAT_KEYBOARD,
+    .keymap             = &bsp_keymap_why2025,
+    .backlight_endpoint = 0,
+    .backlight_index    = 1,
+};
+bsp_input_devtree_t const input2_tree = {
+    .common   = {
         .type = BSP_EP_INPUT_GPIO,
     },
     .category = BSP_INPUT_CAT_GENERIC,
-    .pinmap   = &(bsp_pinmap_t const){
-        .activelow = true,
+    .pinmap   = &(bsp_pinmap_t const) {
         .pins_len  = 1,
-        .pins      = (uint8_t const[]) {
-            35,
-        },
+        .pins      = (uint8_t const[]) {35},
+        .activelow = false,
     },
+};
+bsp_led_devtree_t const led_tree = {
+    .common   = {
+        .type = BSP_EP_LED_WHY2025_CH32,
+    },
+    .num_leds = 2,
+    .ledfmt   = {
+        .color = BSP_PIXFMT_16_GREY,
+    }
 };
 bsp_display_devtree_t const disp_tree = {
     .common = {
-        .type = BSP_EP_DISP_ST7701,
+        .type      = BSP_EP_DISP_ST7701,
+        .reset_pin = 0,
     },
     .pixfmt = {BSP_PIXFMT_16_565RGB, false},
     .h_fp   = BSP_DSI_LCD_HFP,
@@ -47,29 +66,60 @@ bsp_display_devtree_t const disp_tree = {
     .height = BSP_DSI_LCD_V_RES,
     .v_bp   = BSP_DSI_LCD_VBP,
     .v_sync = BSP_DSI_LCD_VSYNC,
+    .backlight_endpoint = 0,
+    .backlight_index    = 0,
 };
 bsp_devtree_t const tree = {
-    .input_count = 1,
+    .input_count = 2,
     .input_dev = (bsp_input_devtree_t const *const[]) {
         &input_tree,
+        &input2_tree,
     },
-    .disp_count = 0,
+    .led_count = 1,
+    .led_dev = (bsp_led_devtree_t const *const[]){
+        &led_tree,
+    },
+    .disp_count = 1,
     .disp_dev   = (bsp_display_devtree_t const *const[]) {
         &disp_tree,
     },
 };
 
-void app_main(void) {
+pgui_grid_t gui = PGUI_NEW_GRID(
+    10,
+    10,
+    216,
+    100,
+    2,
+    3,
+
+    &PGUI_NEW_LABEL("Row 1"),
+    &PGUI_NEW_TEXTBOX(),
+
+    &PGUI_NEW_LABEL("Row 2"),
+    &PGUI_NEW_BUTTON("Hello,"),
+
+    &PGUI_NEW_LABEL("Row 2"),
+    &PGUI_NEW_BUTTON("World!")
+);
+
+pax_buf_t gfx;
+void      app_main(void) {
+    esp_log_level_set("bsp-device", ESP_LOG_DEBUG);
     display_version();
     bsp_init();
 
-    pax_buf_t gfx;
     pax_buf_init(&gfx, NULL, BSP_DSI_LCD_H_RES, BSP_DSI_LCD_V_RES, PAX_BUF_16_565RGB);
     pax_buf_set_orientation(&gfx, PAX_O_ROT_CW);
     pax_background(&gfx, 0);
-    pax_draw_text(&gfx, 0xffffffff, pax_font_sky, 36, 0, 0, "Julian Wuz Here");
+    pax_buf_reversed(&gfx, false);
 
     uint32_t dev_id = bsp_dev_register(&tree);
+    bsp_disp_backlight(dev_id, 0, 65535);
+
+    pgui_calc_layout(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL);
+    pax_background(&gfx, pgui_theme_default.bg_col);
+    pgui_draw(&gfx, (pgui_elem_t *)&gui, NULL);
     bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
 
     while (true) {
@@ -82,12 +132,27 @@ void app_main(void) {
             };
             ESP_LOGI(
                 "main",
-                "Dev %" PRIu32 " ep %" PRIu8 " input %" PRIu8 " %s",
+                "Dev %" PRIu32 " ep %" PRIu8 " input %d nav input %d raw input %d %s modkey %04" PRIx32,
                 event.input.dev_id,
                 event.input.endpoint,
+                event.input.input,
+                event.input.nav_input,
                 event.input.raw_input,
-                tab[event.input.type]
+                tab[event.input.type],
+                event.input.modkeys
             );
+            pgui_event_t p_event = {
+                     .type    = event.input.type,
+                     .input   = event.input.nav_input,
+                     .value   = event.input.text_input,
+                     .modkeys = event.input.modkeys,
+            };
+            pgui_resp_t resp = pgui_event(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL, p_event);
+            ESP_LOGI("main", "Resp: %d", resp);
+            if (resp) {
+                pgui_redraw(&gfx, (pgui_elem_t *)&gui, NULL);
+                bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
+            }
         }
     }
 }

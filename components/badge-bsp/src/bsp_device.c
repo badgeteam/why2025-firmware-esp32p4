@@ -7,6 +7,7 @@
 #include "bsp/disp_mipi_dsi.h"
 #include "bsp/disp_st7701.h"
 #include "bsp/input_gpio.h"
+#include "bsp/why2025_coproc.h"
 #include "bsp_color.h"
 
 #include <esp_log.h>
@@ -27,12 +28,27 @@ static bsp_input_driver_t const *input_tab[] = {
         },
         .get_raw = bsp_input_gpio_get_raw,
     },
+    [BSP_EP_INPUT_WHY2025_CH32] = &(bsp_input_driver_t const){
+        .common = {
+            .init    = bsp_input_why2025ch32_init,
+            .deinit  = NULL,
+        },
+        .get_raw = bsp_input_why2025ch32_get_raw,
+    },
 };
 static size_t const input_tab_len = sizeof(input_tab) / sizeof(bsp_input_driver_t const *);
 
 // LED driver table.
 static bsp_led_driver_t const *led_tab[] = {
-    // TODO.
+    [BSP_EP_LED_WHY2025_CH32] = &(bsp_led_driver_t const) {
+        .common = {
+            .init = NULL,
+            .deinit = NULL,
+        },
+        .set_raw = bsp_led_why2025ch32_set_raw,
+        .get_raw = bsp_led_why2025ch32_get_raw,
+        .update  = bsp_led_why2025ch32_update,
+    }
 };
 static size_t const led_tab_len = sizeof(led_tab) / sizeof(bsp_led_driver_t const *);
 
@@ -70,11 +86,15 @@ SemaphoreHandle_t     bsp_dev_mtx;
 // Number of shares currently held.
 static int            bsp_dev_shares;
 // Next device ID to be handed out.
-static uint32_t       next_dev_id = 1;
+static uint32_t       next_dev_id      = 1;
 // Number of registered devices.
-static size_t         devices_len = 0;
+static size_t         devices_len      = 0;
 // Registered devices.
-static bsp_device_t **devices     = NULL;
+static bsp_device_t **devices          = NULL;
+// Per-modkey counter.
+static uint16_t       modkey_count[16] = {0};
+// Current modkey value.
+static uint16_t       modkeys;
 
 // Get the device mutex shared.
 static bool acq_shared() {
@@ -129,10 +149,9 @@ static void run_init_funcs(bsp_device_t *dev, bool is_deinit) {
         ep_count += dev->tree->ep_counts[i];
     }
 
-    int cur_prio = is_deinit ? INT_MIN : INT_MAX;
+    int thr_prio = is_deinit ? INT_MAX : INT_MIN;
     while (ep_count) {
-        int thr_prio = is_deinit ? INT_MAX : INT_MIN;
-
+        int cur_prio = is_deinit ? INT_MIN : INT_MAX;
         // Get minimum priority.
         for (int i = 0; i < BSP_EP_TYPE_COUNT; i++) {
             for (int j = 0; j < dev->tree->ep_counts[i]; j++) {
@@ -144,6 +163,7 @@ static void run_init_funcs(bsp_device_t *dev, bool is_deinit) {
                 }
             }
         }
+        ESP_LOGD(TAG, "cur=%d, thr=%d, ep_count=%" PRIu16, cur_prio, thr_prio, ep_count);
 
         // Run all matching init functions.
         for (int i = 0; i < BSP_EP_TYPE_COUNT; i++) {
@@ -157,23 +177,25 @@ static void run_init_funcs(bsp_device_t *dev, bool is_deinit) {
                     continue;
                 }
                 if (is_deinit && dev->ep_drivers[i][j]->deinit) {
+                    ESP_LOGD(TAG, "Device %" PRIu32 " %s endpoint %" PRId8 " deinit", dev->id, ep_type_str[i], j);
                     if (!dev->ep_drivers[i][j]->deinit(dev, j)) {
                         ESP_LOGE(
                             TAG,
-                            "Device %s endpoint %" PRId8 " %" PRId32 " deinit failed",
+                            "Device %" PRIu32 " %s endpoint %" PRId8 " deinit failed",
+                            dev->id,
                             ep_type_str[i],
-                            j,
-                            dev->id
+                            j
                         );
                     }
                 } else if (!is_deinit && dev->ep_drivers[i][j]->init) {
+                    ESP_LOGD(TAG, "Device %" PRIu32 " %s endpoint %" PRId8 " init", dev->id, ep_type_str[i], j);
                     if (!dev->ep_drivers[i][j]->init(dev, j)) {
                         ESP_LOGE(
                             TAG,
-                            "Device %s endpoint %" PRId8 " %" PRId32 " init failed",
+                            "Device %" PRIu32 " %s endpoint %" PRId8 " init failed",
+                            dev->id,
                             ep_type_str[i],
-                            j,
-                            dev->id
+                            j
                         );
                     }
                 }
@@ -343,14 +365,14 @@ void bsp_input_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm) {
         rel_shared();
         return;
     }
-    uint8_t bl_ep  = dev->tree->disp_dev[endpoint]->backlight_endpoint;
-    uint8_t bl_idx = dev->tree->disp_dev[endpoint]->backlight_index;
+    uint8_t bl_ep  = dev->tree->input_dev[endpoint]->backlight_endpoint;
+    uint8_t bl_idx = dev->tree->input_dev[endpoint]->backlight_index;
     if (bl_ep >= dev->tree->led_count || bl_idx >= dev->tree->led_count) {
         rel_shared();
         return;
     }
     if (dev->led_drivers[endpoint]) {
-        uint64_t value = bsp_grey16_to_col(dev->tree->disp_dev[endpoint]->pixfmt.color, pwm);
+        uint64_t value = bsp_grey16_to_col(dev->tree->led_dev[endpoint]->ledfmt.color, pwm);
         dev->led_drivers[endpoint]->set_raw(dev, endpoint, idx, value);
         dev->led_drivers[endpoint]->update(dev, endpoint);
     }
@@ -579,10 +601,124 @@ void bsp_disp_update_part(
 
 // Set a device's display backlight.
 void bsp_disp_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm) {
-    // TODO.
+    if (!acq_shared()) {
+        return;
+    }
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx < 0 || endpoint >= dev->tree->disp_count) {
+        rel_shared();
+        return;
+    }
+    uint8_t bl_ep  = dev->tree->disp_dev[endpoint]->backlight_endpoint;
+    uint8_t bl_idx = dev->tree->disp_dev[endpoint]->backlight_index;
+    if (bl_ep >= dev->tree->led_count || bl_idx >= dev->tree->led_count) {
+        rel_shared();
+        return;
+    }
+    if (dev->led_drivers[endpoint]) {
+        uint64_t value = bsp_grey16_to_col(dev->tree->led_dev[endpoint]->ledfmt.color, pwm);
+        dev->led_drivers[endpoint]->set_raw(dev, endpoint, idx, value);
+        dev->led_drivers[endpoint]->update(dev, endpoint);
+    }
+    rel_shared();
 }
 
 
+
+// Update modifier keys.
+static void update_modkeys(bsp_input_t input, bool pressed) {
+    int index;
+    switch (input) {
+        default: return;
+        case BSP_INPUT_L_SHIFT: index = 0; break;
+        case BSP_INPUT_R_SHIFT: index = 1; break;
+        case BSP_INPUT_L_CTRL: index = 6; break;
+        case BSP_INPUT_R_CTRL: index = 7; break;
+        case BSP_INPUT_L_ALT: index = 8; break;
+        case BSP_INPUT_R_ALT: index = 9; break;
+        case BSP_INPUT_FUNCTION: index = 11; break;
+        case BSP_INPUT_NUM_LK: index = 12; break;
+        case BSP_INPUT_CAPS_LK: index = 13; break;
+        case BSP_INPUT_SCROLL_LK: index = 15; break;
+    }
+    if (pressed && modkey_count[index] < 65535) {
+        modkey_count[index]++;
+    } else if (!pressed && modkey_count[index]) {
+        modkey_count[index]--;
+    }
+    uint16_t tmp = 0;
+    for (int i = 0; i < 16; i++) {
+        tmp |= (modkey_count[i] > 0) << i;
+    }
+    modkeys = tmp;
+}
+
+// Button event to ASCII value.
+static char input_ascii_impl(bsp_input_t input, uint16_t modkeys) {
+    if (input == BSP_INPUT_BACKSPACE) {
+        return (modkeys & BSP_MODKEY_FN) ? 0x7f : '\b';
+    } else if (input == BSP_INPUT_DELETE) {
+        return 0x7f;
+    } else if (input == BSP_INPUT_ENTER) {
+        return '\n';
+    } else if (input == BSP_INPUT_SPACE) {
+        return ' ';
+    } else if (input >= BSP_INPUT_KB_A && input <= BSP_INPUT_KB_Z) {
+        bool lowercase = !(modkeys & BSP_MODKEY_SHIFT) ^ !!(modkeys & BSP_MODKEY_CAPS_LK);
+        return lowercase ? (input | 0x20) : input;
+    } else if (!(modkeys & BSP_MODKEY_SHIFT)) {
+        switch (input) {
+            default: return 0;
+            case '`': return '`';
+            case '1': return '1';
+            case '2': return '2';
+            case '3': return '3';
+            case '4': return '4';
+            case '5': return '5';
+            case '6': return '6';
+            case '7': return '7';
+            case '8': return '8';
+            case '9': return '9';
+            case '0': return '0';
+            case '-': return '-';
+            case '=': return '=';
+            case '[': return '[';
+            case ']': return ']';
+            case '\\': return '\\';
+            case ';': return ';';
+            case '\'': return '\'';
+            case ',': return ',';
+            case '.': return '.';
+            case '/': return '/';
+        }
+    } else {
+        switch (input) {
+            default: return 0;
+            case '`': return '~';
+            case '1': return '!';
+            case '2': return '@';
+            case '3': return '#';
+            case '4': return '$';
+            case '5': return '%';
+            case '6': return '^';
+            case '7': return '&';
+            case '8': return '*';
+            case '9': return '(';
+            case '0': return ')';
+            case '-': return '_';
+            case '=': return '+';
+            case '[': return '{';
+            case ']': return '}';
+            case '\\': return '|';
+            case ';': return ':';
+            case '\'': return '"';
+            case ',': return '<';
+            case '.': return '>';
+            case '/': return '?';
+        }
+    }
+}
 
 // Button event implementation.
 static void button_event_impl(uint32_t dev_id, uint8_t endpoint, int input, bool pressed, bool from_isr) {
@@ -606,10 +742,20 @@ static void button_event_impl(uint32_t dev_id, uint8_t endpoint, int input, bool
     event.input.raw_input = input;
     if (tree->keymap && input < tree->keymap->max_scancode) {
         event.input.input = tree->keymap->keymap[input];
+        update_modkeys(event.input.input, pressed);
+        event.input.text_input = input_ascii_impl(event.input.input, modkeys);
     } else {
         event.input.input = BSP_INPUT_NONE;
     }
-    event.input.nav_input = event.input.input;
+    event.input.modkeys = modkeys;
+    switch (event.input.input) {
+        default: event.input.nav_input = event.input.input; break;
+        case BSP_INPUT_ENTER:
+        case BSP_INPUT_NP_ENTER: event.input.nav_input = BSP_INPUT_ACCEPT; break;
+        case BSP_INPUT_BACKSPACE:
+        case BSP_INPUT_ESCAPE: event.input.nav_input = BSP_INPUT_BACK; break;
+        case BSP_INPUT_TAB: event.input.nav_input = modkeys & BSP_MODKEY_SHIFT ? BSP_INPUT_PREV : BSP_INPUT_NEXT; break;
+    }
     if (from_isr) {
         bsp_event_queue(&event);
     } else {

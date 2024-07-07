@@ -1,0 +1,70 @@
+# Exported symbol table:
+# Use `application_symbol = launcher_symbol` for renaming,
+# Or use `common_symbol` for exporting with the same name.
+# Be aware that C++ symbols need to be mangled before adding to this file.
+
+
+# TODO: <stdio.h> needs a wrapper because of stdin, stdout and stderr
+# TODO: Need symbol names for implicitly referenced functions
+
+
+# <string.h>
+memchr
+memcmp
+memcpy
+memmove
+memset
+strcat
+strchr
+strcmp
+strcoll
+strcpy
+strcspn
+strerror
+strlen
+strncat
+strncmp
+strncpy
+strpbrk
+strrchr
+strspn
+strstr
+strtok
+strxfrm
+strcoll_l
+strerror_l
+strxfrm_l
+strtok_r
+timingsafe_bcmp
+timingsafe_memcmp
+memccpy
+mempcpy
+memmem
+memrchr
+rawmemchr
+stpcpy
+stpncpy
+strcasestr
+strchrnul
+strdup
+strndup
+strlcat
+strlcpy
+strnlen
+strsep
+strnstr
+strlwr
+strupr
+strsignal
+strverscmp
+
+# <malloc.h>
+malloc
+free
+realloc
+calloc
+memalign
+mallinfo
+malloc_stats
+mallopt
+malloc_usable_size

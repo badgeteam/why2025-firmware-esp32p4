@@ -1,4 +1,4 @@
-PORT ?= $(shell find /dev -name 'ttyACM*' -or -name 'ttyUSB*' 2>/dev/null)
+PORT ?= /dev/ttyACM0
 BUILDDIR ?= build
 
 IDF_PATH ?= $(shell pwd)/esp-idf
@@ -57,9 +57,16 @@ fullclean:
 
 # Building
 
+build/badge_export_symbols.cmake: tools/exported.txt tools/symbol_export.py
+	mkdir -p build
+	./tools/symbol_export.py --symbols tools/exported.txt --cmake build/badge_export_symbols.cmake
+
 .PHONY: build
-build:
-	source "$(IDF_PATH)/export.sh" && idf.py build
+build: build/badge_export_symbols.cmake
+	source "$(IDF_PATH)/export.sh" && \
+		idf.py build && \
+		./tools/symbol_export.py --symbols tools/exported.txt --binary build/why2025-firmware-esp32p4.elf \
+			--assembler riscv32-esp-elf-gcc --table build/badge_jump_table.elf --address 0x43F80000
 
 .PHONY: image
 image:
@@ -83,6 +90,10 @@ monitor:
 .PHONY: openocd
 openocd:
 	source "$(IDF_PATH)/export.sh" && idf.py openocd
+
+.PHONY: gdb
+gdb:
+	source "$(IDF_PATH)/export.sh" && idf.py gdb
 
 # Tools
 

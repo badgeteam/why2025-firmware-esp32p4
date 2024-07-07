@@ -15,6 +15,11 @@ typedef enum {
     // None or unknown input.
     BSP_INPUT_NONE,
 
+    // Navigate to the previous element/option.
+    BSP_INPUT_PREV,
+    // Navigate to the next element/option.
+    BSP_INPUT_NEXT,
+
     // Keyboard/DPAD left.
     BSP_INPUT_LEFT,
     // Keyboard/DPAD right.
@@ -23,10 +28,15 @@ typedef enum {
     BSP_INPUT_UP,
     // Keyboard/DPAD down.
     BSP_INPUT_DOWN,
-    // Navigate to the previous element/option.
-    BSP_INPUT_PREV,
-    // Navigate to the next element/option.
-    BSP_INPUT_NEXT,
+
+    // Keyboard home.
+    BSP_INPUT_HOME,
+    // Keyboard end.
+    BSP_INPUT_END,
+    // Keyboard page up.
+    BSP_INPUT_PGUP,
+    // Keyboard page down.
+    BSP_INPUT_PGDN,
 
     // A / Accept button.
     BSP_INPUT_ACCEPT,
@@ -228,14 +238,6 @@ typedef enum {
     BSP_INPUT_PAUSE_BREAK,
     // Keyboard insert.
     BSP_INPUT_INSERT,
-    // Keyboard home.
-    BSP_INPUT_HOME,
-    // Keyboard end.
-    BSP_INPUT_END,
-    // Keyboard page up.
-    BSP_INPUT_PGUP,
-    // Keyboard page down.
-    BSP_INPUT_PGDN,
 
     // Keyboard num lock.
     BSP_INPUT_NUM_LK,
@@ -267,6 +269,38 @@ typedef struct {
     bsp_input_t            nav_input;
     // Input value.
     bsp_input_t            input;
+    // Input interpreted as text including DEL(0x7f), BS(\b) and ENTER(\n).
+    char                   text_input;
     // Raw input value or keyboard scan code.
     int                    raw_input;
+    // Active modifier keys, if any.
+    uint32_t               modkeys;
 } bsp_input_event_t;
+
+/* ==== SDL2-compatible modifier keys ==== */
+// Left shift pressed.
+#define BSP_MODKEY_L_SHIFT   0x0001
+// Right shift pressed.
+#define BSP_MODKEY_R_SHIFT   0x0002
+// Left control pressed.
+#define BSP_MODKEY_L_CTRL    0x0040
+// Right control pressed.
+#define BSP_MODKEY_R_CTRL    0x0080
+// Left alt pressed.
+#define BSP_MODKEY_L_ALT     0x0100
+// Right alt pressed.
+#define BSP_MODKEY_R_ALT     0x0200
+// Function key pressed.
+#define BSP_MODKEY_FN        0x0800
+// Num lock active.
+#define BSP_MODKEY_NUM_LK    0x1000
+// Caps lock active.
+#define BSP_MODKEY_CAPS_LK   0x2000
+// Scroll lock active.
+#define BSP_MODKEY_SCROLL_LK 0x8000
+// Any control key pressed.
+#define BSP_MODKEY_CTRL      (BSP_MODKEY_L_CTRL | BSP_MODKEY_R_CTRL)
+// Any shift key pressed.
+#define BSP_MODKEY_SHIFT     (BSP_MODKEY_L_SHIFT | BSP_MODKEY_R_SHIFT)
+// Any alt kay pressed.
+#define BSP_MODKEY_ALT       (BSP_MODKEY_L_ALT | BSP_MODKEY_R_ALT)

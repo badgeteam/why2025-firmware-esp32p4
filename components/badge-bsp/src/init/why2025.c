@@ -28,4 +28,5 @@ void bsp_platform_init() {
 
     // Install co-processor drivers.
     bsp_why2025_coproc_init();
+    bsp_c6_control(true, true);
 }
