@@ -118,8 +118,6 @@ void draw_text(char const *text) {
 }
 
 void app_main(void) {
-    esp_log_level_set("appfs", ESP_LOG_DEBUG);
-    esp_log_level_set("bsp-device", ESP_LOG_DEBUG);
     display_version();
     bsp_init();
 
