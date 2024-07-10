@@ -10,3 +10,5 @@ tools/__pycache__
 esp-idf
 esp-idf-tools
 dependencies.lock
+.IDF_PATH
+.IDF_TOOLS_PATH
