@@ -1,8 +1,8 @@
 PORT ?= /dev/ttyACM0
 BUILDDIR ?= build
 
-IDF_PATH ?= $(shell pwd)/esp-idf
-IDF_TOOLS_PATH ?= $(shell pwd)/esp-idf-tools
+IDF_PATH ?= $(shell cat .IDF_PATH 2>/dev/null || echo `pwd`/esp-idf)
+IDF_TOOLS_PATH ?= $(shell cat .IDF_TOOLS_PATH 2>/dev/null || echo `pwd`/esp-idf-tools)
 IDF_BRANCH ?= release/v5.3
 #IDF_COMMIT ?= c57b352725ab36f007850d42578d2c7bc858ed47
 IDF_EXPORT_QUIET ?= 1
