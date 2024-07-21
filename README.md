@@ -18,4 +18,11 @@ Are you interested in helping out?
 1. Run `make flash` to build *and* flash your version of the software
 	Ignore the suggestions to flash
 
+Your firmware should start running right away
 
+## Debugging
+
+`printf` will log messages via the USB.
+Use `screen /dev/ttyACM0` to see those messages. Press `CTRL+A` followed by `d` to exit.
+
+Note: `screen /dev/ttyACM1` is where the secondary ESP-chip will output its messages.
