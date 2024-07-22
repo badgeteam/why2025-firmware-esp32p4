@@ -5,4 +5,6 @@ idf_component_register(
         "main.c"
     INCLUDE_DIRS
         "."
+    EMBED_FILES
+        "ch32_firmware.bin"
 )

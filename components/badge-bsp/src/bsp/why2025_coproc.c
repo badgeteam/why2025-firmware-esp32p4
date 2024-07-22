@@ -28,6 +28,22 @@ static sdmmc_card_t      c6_card;
 static uint8_t           c6_cis_buf[256];
 static sdmmc_host_t      sdmmc_host = SDMMC_HOST_DEFAULT();
 
+// Get the C6 version.
+esp_err_t bsp_ch32_version(uint16_t *ver) {
+    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
+    esp_err_t res = i2c_master_write_read_device(
+        BSP_I2CINT_NUM,
+        BSP_CH32_ADDR,
+        (uint8_t const[]){0x00},
+        1,
+        (void *)ver,
+        2,
+        pdMS_TO_TICKS(100)
+    );
+    xSemaphoreGive(ch32_semaphore);
+    return res;
+}
+
 // Initialise the co-processor drivers.
 esp_err_t bsp_why2025_coproc_init() {
     // Initialise the CH32V203 driver.
@@ -147,10 +163,11 @@ IRAM_ATTR static void ch32_isr(void *arg) {
 esp_err_t ch32_set_display_backlight(uint16_t value) {
     xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     uint8_t buffer[3];
-    buffer[0]     = 11; // I2C_REG_DISPLAY_BACKLIGHT_0
-    buffer[1]     = value & 0xFF;
-    buffer[2]     = value >> 8;
-    esp_err_t res = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    buffer[0] = 11; // I2C_REG_DISPLAY_BACKLIGHT_0
+    buffer[1] = value & 0xFF;
+    buffer[2] = value >> 8;
+    esp_err_t res
+        = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), pdMS_TO_TICKS(100));
     xSemaphoreGive(ch32_semaphore);
     return res;
 }
@@ -159,10 +176,11 @@ esp_err_t ch32_set_display_backlight(uint16_t value) {
 esp_err_t ch32_set_keyboard_backlight(uint16_t value) {
     xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     uint8_t buffer[3];
-    buffer[0]     = 13; // I2C_REG_KEYBOARD_BACKLIGHT_0
-    buffer[1]     = value & 0xFF;
-    buffer[2]     = value >> 8;
-    esp_err_t res = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    buffer[0] = 13; // I2C_REG_KEYBOARD_BACKLIGHT_0
+    buffer[1] = value & 0xFF;
+    buffer[2] = value >> 8;
+    esp_err_t res
+        = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), pdMS_TO_TICKS(100));
     xSemaphoreGive(ch32_semaphore);
     return res;
 }
@@ -177,9 +195,9 @@ esp_err_t ch32_get_display_backlight(uint16_t *value) {
         BSP_CH32_ADDR,
         (uint8_t const[]){11}, // I2C_REG_DISPLAY_BACKLIGHT_0
         1,
-        value,
+        (void *)value,
         2,
-        portMAX_DELAY
+        pdMS_TO_TICKS(100)
     );
     xSemaphoreGive(ch32_semaphore);
     return res;
@@ -195,9 +213,9 @@ esp_err_t ch32_get_keyboard_backlight(uint16_t *value) {
         BSP_CH32_ADDR,
         (uint8_t const[]){13}, // I2C_REG_KEYBOARD_BACKLIGHT_0
         1,
-        value,
+        (void *)value,
         2,
-        portMAX_DELAY
+        pdMS_TO_TICKS(100)
     );
     xSemaphoreGive(ch32_semaphore);
     return res;

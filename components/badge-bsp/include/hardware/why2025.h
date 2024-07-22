@@ -14,6 +14,8 @@
 #define BSP_CH32_IRQ_PIN 49
 // I²C address for the CH32V203.
 #define BSP_CH32_ADDR    0x5f
+// Expected CH32 version.
+#define BSP_CH32_VERSION 0x01
 
 #define BSP_SDIO_CLK   17
 #define BSP_SDIO_CMD   16

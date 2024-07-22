@@ -14,6 +14,8 @@
 
 /* ==== platform-specific functions ==== */
 
+// Get the C6 version.
+esp_err_t bsp_ch32_version(uint16_t *ver);
 // Initialise the co-processor drivers.
 esp_err_t bsp_why2025_coproc_init();
 
