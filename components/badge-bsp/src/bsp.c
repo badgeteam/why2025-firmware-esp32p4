@@ -9,18 +9,39 @@
 
 static QueueHandle_t queue;
 
-extern void bsp_platform_init();
+void bsp_platform_preinit();
+void bsp_platform_init();
 
 // Devide table mutex.
 extern SemaphoreHandle_t bsp_dev_mtx;
 
 
 
-// Initialise the BSP, should be called early on in `app_main`.
-void bsp_init() {
+// Pre-init function; initialize BSP but not external devices.
+void bsp_preinit() {
+    // Make sure this is only called once.
+    static bool called = false;
+    if (called) {
+        return;
+    }
+    called = true;
+
     bsp_dev_mtx = xSemaphoreCreateBinary();
     xSemaphoreGive(bsp_dev_mtx);
     queue = xQueueCreate(16, sizeof(bsp_event_t));
+    bsp_platform_preinit();
+}
+
+// Initialise the BSP, should be called early on in `app_main`.
+void bsp_init() {
+    // Make sure this is only called once.
+    static bool called = false;
+    if (called) {
+        return;
+    }
+    called = true;
+
+    bsp_preinit();
     bsp_platform_init();
 }
 

@@ -28,6 +28,9 @@ typedef struct {
 
 
 
+// Pre-init function; initialize BSP but not external devices.
+// Optional; called implicitly when `bsp_init()` is called.
+void bsp_preinit();
 // Initialise the BSP, should be called early on in `app_main`.
 void bsp_init();
 

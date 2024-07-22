@@ -4,4 +4,6 @@ idf_component_register(
         "fonts/chakrapetchmedium.c"
     INCLUDE_DIRS
         "."
+    EMBED_FILES
+        "ch32_firmware.bin"
 )

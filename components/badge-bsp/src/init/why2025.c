@@ -30,7 +30,7 @@ sdmmc_slot_config_t const why2025_sdio_config = {
 };
 
 // Platform-specific BSP init code.
-void bsp_platform_init() {
+void bsp_platform_preinit() {
     // Enable GPIO interrupts.
     ESP_ERROR_CHECK_WITHOUT_ABORT(gpio_install_isr_service(0));
 
@@ -46,12 +46,16 @@ void bsp_platform_init() {
     ESP_ERROR_CHECK_WITHOUT_ABORT(i2c_param_config(BSP_I2CINT_NUM, &i2c_conf));
     ESP_ERROR_CHECK_WITHOUT_ABORT(i2c_driver_install(BSP_I2CINT_NUM, I2C_MODE_MASTER, 0, 0, 0));
 
+    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_why2025_coproc_init());
+}
+
+// Platform-specific BSP init code.
+void bsp_platform_init() {
+    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_control(true, true));
+
     // Enable SDIO bus.
     ESP_ERROR_CHECK_WITHOUT_ABORT(sdmmc_host_init());
     ESP_ERROR_CHECK_WITHOUT_ABORT(sdmmc_host_init_slot(SDMMC_HOST_SLOT_1, &why2025_sdio_config));
 
-    // Install co-processor drivers.
-    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_why2025_coproc_init());
-    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_control(true, true));
     ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_init());
 }

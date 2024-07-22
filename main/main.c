@@ -20,6 +20,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+char const TAG[] = "main";
+
 
 
 void display_version() {
@@ -107,15 +109,36 @@ pgui_grid_t gui = PGUI_NEW_GRID(
     &PGUI_NEW_BUTTON("World!")
 );
 
-extern void rvswd_test();
+extern uint8_t const ch32_firmware_start[] asm("_binary_ch32_firmware_bin_start");
+extern uint8_t const ch32_firmware_end[] asm("_binary_ch32_firmware_bin_end");
 
 pax_buf_t gfx;
-void      draw_text(char const *text) {
-    pax_background(&gfx, 0);
-    pax_center_text(&gfx, 0xff000000, pax_font_saira_condensed, pax_font_saira_condensed->default_size, 400, 240, text);
-}
 
 void app_main(void) {
+    bsp_preinit();
+    uint16_t  version = 0xffff;
+    esp_err_t res     = bsp_ch32_version(&version);
+    if (res) {
+        ESP_LOGW(TAG, "Unable to read CH32 version");
+    } else if (version != BSP_CH32_VERSION) {
+        ESP_LOGI(
+            TAG,
+            "CH32 version 0x%04" PRIx16 " too %s (expected %04" PRIx16 ")",
+            version,
+            version < BSP_CH32_VERSION ? "old" : "new",
+            BSP_CH32_VERSION
+        );
+    } else {
+        ESP_LOGI(TAG, "CH32 version 0x%04" PRIx16, version);
+    }
+    if (res || version != BSP_CH32_VERSION) {
+        ESP_LOGI(TAG, "Programming CH32");
+        rvswd_handle_t handle = {
+            .swdio = 22,
+            .swclk = 23,
+        };
+        ch32_program(&handle, ch32_firmware_start, ch32_firmware_end - ch32_firmware_start);
+    }
     display_version();
     bsp_init();
 
@@ -125,9 +148,6 @@ void app_main(void) {
     pax_buf_reversed(&gfx, false);
 
     uint32_t dev_id = bsp_dev_register(&tree);
-    bsp_disp_backlight(dev_id, 0, 65535);
-
-    rvswd_test();
     bsp_disp_backlight(dev_id, 0, 65535);
 
     pgui_calc_layout(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL);
