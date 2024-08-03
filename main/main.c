@@ -1,6 +1,7 @@
 
 // SPDX-License-Identifier: MIT
 
+#include "app.h"
 #include "bsp.h"
 #include "bsp/why2025_coproc.h"
 #include "bsp_device.h"
@@ -110,14 +111,30 @@ pgui_grid_t gui = PGUI_NEW_GRID(
 extern void rvswd_test();
 
 pax_buf_t gfx;
-void      draw_text(char const *text) {
+
+void draw_text(char const *text) {
     pax_background(&gfx, 0);
     pax_center_text(&gfx, 0xff000000, pax_font_saira_condensed, pax_font_saira_condensed->default_size, 400, 240, text);
 }
 
 void app_main(void) {
+    esp_log_level_set("appfs", ESP_LOG_DEBUG);
+    esp_log_level_set("bsp-device", ESP_LOG_DEBUG);
     display_version();
     bsp_init();
+
+    esp_err_t res = appfsInit(APPFS_PART_TYPE, APPFS_PART_SUBTYPE);
+    if (res) {
+        ESP_LOGE("main", "AppFS init failed: %s", esp_err_to_name(res));
+    } else {
+        appfs_handle_t fd = appfsOpen("app_ok");
+        app_info_t     info;
+        app_info(fd, &info);
+        res = app_start(fd, &info);
+        if (res) {
+            ESP_LOGE("main", "App failed to start: %s", esp_err_to_name(res));
+        }
+    }
 
     pax_buf_init(&gfx, NULL, BSP_DSI_LCD_H_RES, BSP_DSI_LCD_V_RES, PAX_BUF_16_565RGB);
     pax_buf_set_orientation(&gfx, PAX_O_ROT_CW);

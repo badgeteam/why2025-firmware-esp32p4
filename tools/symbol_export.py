@@ -97,18 +97,30 @@ def asm_table(symbols: list[tuple[str,str]], elf_path: str, out_path: str, assem
                 '-o', out_path
             ])
 
+def gen_ldscript(symbols: list[tuple[str,str]], path: str, address: int):
+    fd = open(path, "w")
+    fd.write("/* WARNING: This is a generated file, do not edit it! */\n")
+    for i in range(len(symbols)):
+        sym = symbols[i]
+        fd.write("PROVIDE({} = 0x{:08x});\n".format(sym[0], i*8+address))
+    fd.close()
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--symbols", action="store")
-    parser.add_argument("--binary", action="store")
-    parser.add_argument("--cmake", action="store")
-    parser.add_argument("--table", action="store")
+    parser.add_argument("--symbols",   action="store")
+    parser.add_argument("--binary",    action="store")
+    parser.add_argument("--cmake",     action="store")
+    parser.add_argument("--table",     action="store")
+    parser.add_argument("--ldscript",  action="store")
     parser.add_argument("--assembler", action="store")
-    parser.add_argument("--address", action="store")
+    parser.add_argument("--address",   action="store")
     args = parser.parse_args()
     symbols = load_symbols(args.symbols)
     if (args.cmake):
         gen_cmake(symbols, args.cmake)
+    if (args.ldscript):
+        assert(args.address)
+        gen_ldscript(symbols, args.ldscript, int(args.address, 16))
     if (args.table):
         assert(args.assembler)
         assert(args.binary)

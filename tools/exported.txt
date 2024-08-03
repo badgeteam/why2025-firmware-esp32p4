@@ -68,3 +68,7 @@ mallinfo
 malloc_stats
 mallopt
 malloc_usable_size
+
+# Temporary
+printf
+puts

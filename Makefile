@@ -63,10 +63,14 @@ build/badge_export_symbols.cmake: tools/exported.txt tools/symbol_export.py
 
 .PHONY: build
 build: build/badge_export_symbols.cmake
-	source "$(IDF_PATH)/export.sh" && \
-		idf.py build && \
-		./tools/symbol_export.py --symbols tools/exported.txt --binary build/why2025-firmware-esp32p4.elf \
-			--assembler riscv32-esp-elf-gcc --table build/badge_jump_table.elf --address 0x43F80000
+	source "$(IDF_PATH)/export.sh" >/dev/null && \
+	idf.py build && \
+	echo Building jump tables && \
+	./tools/symbol_export.py --address 0x43F80000 \
+		--symbols tools/exported.txt --binary build/why2025-firmware-esp32p4.elf \
+		--table build/badge_jump_table.elf --assembler riscv32-esp-elf-gcc \
+		--ldscript build/badge_jump_table.ld && \
+	riscv32-esp-elf-objcopy -O binary build/badge_jump_table.elf build/badge_jump_table.bin
 
 .PHONY: image
 image:
@@ -77,7 +81,20 @@ image:
 
 .PHONY: flash
 flash: build
-	source "$(IDF_PATH)/export.sh" && idf.py flash -p $(PORT)
+	source "$(IDF_PATH)/export.sh" && \
+	idf.py flash -p $(PORT) && \
+	esptool.py \
+		-b 921600 --port $(PORT) \
+		write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB \
+		0x210000 build/badge_jump_table.bin
+
+.PHONY: appfs
+appfs:
+	source "$(IDF_PATH)/export.sh" && \
+	esptool.py \
+		-b 921600 --port $(PORT) \
+		write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB \
+		0x110000 appfs.bin
 
 .PHONY: erase
 erase:
