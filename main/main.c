@@ -121,19 +121,6 @@ void app_main(void) {
     display_version();
     bsp_init();
 
-    esp_err_t res = appfsInit(APPFS_PART_TYPE, APPFS_PART_SUBTYPE);
-    if (res) {
-        ESP_LOGE("main", "AppFS init failed: %s", esp_err_to_name(res));
-    } else {
-        appfs_handle_t fd = appfsOpen("app_ok");
-        app_info_t     info;
-        app_info(fd, &info);
-        res = app_start(fd, &info);
-        if (res) {
-            ESP_LOGE("main", "App failed to start: %s", esp_err_to_name(res));
-        }
-    }
-
     pax_buf_init(&gfx, NULL, BSP_DSI_LCD_H_RES, BSP_DSI_LCD_V_RES, PAX_BUF_16_565RGB);
     pax_buf_set_orientation(&gfx, PAX_O_ROT_CW);
     pax_background(&gfx, 0);
@@ -142,13 +129,27 @@ void app_main(void) {
     uint32_t dev_id = bsp_dev_register(&tree);
     bsp_disp_backlight(dev_id, 0, 65535);
 
-    rvswd_test();
-    bsp_disp_backlight(dev_id, 0, 65535);
+    // rvswd_test();
+    // bsp_disp_backlight(dev_id, 0, 65535);
 
     pgui_calc_layout(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL);
     pax_background(&gfx, pgui_theme_default.bg_col);
     pgui_draw(&gfx, (pgui_elem_t *)&gui, NULL);
     bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
+
+    esp_err_t res = appfsInit(APPFS_PART_TYPE, APPFS_PART_SUBTYPE);
+    if (res) {
+        ESP_LOGE("main", "AppFS init failed: %s", esp_err_to_name(res));
+    } else {
+        appfs_handle_t fd = appfsOpen("app_ok");
+        app_info_t     info;
+        ESP_LOGI("main", "Starting app...");
+        app_info(fd, &info);
+        res = app_start(fd, &info);
+        if (res) {
+            ESP_LOGE("main", "App failed to start: %s", esp_err_to_name(res));
+        }
+    }
 
     while (true) {
         bsp_event_t event;

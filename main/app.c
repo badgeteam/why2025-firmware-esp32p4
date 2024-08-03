@@ -14,6 +14,8 @@
 
 static char const TAG[] = "apploader";
 
+__attribute__((section(".ext_ram.bss"))) static char const psram_resvmem[128 * 1024];
+
 
 
 // Get info about an ESP image in an AppFS file.
@@ -44,9 +46,7 @@ esp_err_t app_info(appfs_handle_t fd, app_info_t *info) {
 }
 
 static bool is_ram_segment(app_segment_t seg) {
-    if (seg.vaddr >= SOC_DRAM_LOW && seg.vaddr + seg.len <= SOC_DRAM_HIGH) {
-        return true;
-    } else if (seg.vaddr >= SOC_EXTRAM_LOW && seg.vaddr + seg.len <= SOC_EXTRAM_HIGH) {
+    if (seg.vaddr >= (size_t)&psram_resvmem && seg.vaddr + seg.len <= (size_t)&psram_resvmem + sizeof(psram_resvmem)) {
         return true;
     } else {
         return false;
@@ -69,6 +69,17 @@ IRAM_ATTR esp_err_t app_start(appfs_handle_t fd, app_info_t *info) {
     if (info->is_firmware) {
         appfsBootSelect(fd, NULL);
         esp_restart();
+    }
+
+    // Assert correct reservation address for AppFS 2 RAM.
+    if (&psram_resvmem != (void *)SOC_EXTRAM_LOW) {
+        ESP_LOGE(
+            TAG,
+            "AppFS2 RAM address (%p) is invalid (expected %p). This is a bug.",
+            &psram_resvmem,
+            (void *)SOC_EXTRAM_LOW
+        );
+        return ESP_FAIL;
     }
 
     // Print segment info.

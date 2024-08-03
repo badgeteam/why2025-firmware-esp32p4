@@ -11,6 +11,7 @@ idf_component_register(
         src/bsp_keymap.c
         src/bsp.c
     INCLUDE_DIRS
+        pub_include
         include
     REQUIRES pax-gfx driver esp_lcd
 )

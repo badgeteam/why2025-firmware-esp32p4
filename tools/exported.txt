@@ -8,6 +8,52 @@
 # TODO: Need symbol names for implicitly referenced functions
 
 
+# "bsp_color.h"
+bsp_grey16_to_col
+bsp_col_to_grey16
+bsp_rgb48_to_col
+bsp_col_to_rgb48
+bsp_rgb_to_col
+bsp_col_to_rgb
+
+# "bsp_device.h"
+bsp_dev_register
+bsp_dev_unregister
+bsp_raw_button_pressed
+bsp_raw_button_released
+bsp_raw_button_pressed_from_isr
+bsp_raw_button_released_from_isr
+
+# "bsp_input.h"
+# No functions defined in this file
+
+# "bsp_keymap.h"
+bsp_keymap_why2025
+
+# "bsp.h"
+bsp_init
+bsp_event_queue
+bsp_event_queue_from_isr
+bsp_event_wait
+bsp_input_get
+bsp_input_get_raw
+bsp_input_backlight
+bsp_led_set_grey16
+bsp_led_get_grey16
+bsp_led_set_grey8
+bsp_led_get_grey8
+bsp_led_set_rgb48
+bsp_led_get_rgb48
+bsp_led_set_rgb
+bsp_led_get_rgb
+bsp_led_set_raw
+bsp_led_get_raw
+bsp_led_update
+bsp_disp_update
+bsp_disp_update_part
+bsp_disp_backlight
+
+
 # <string.h>
 memchr
 memcmp
