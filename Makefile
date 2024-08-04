@@ -34,7 +34,7 @@ submodules:
 sdk:
 	rm -rf "$(IDF_PATH)"
 	rm -rf "$(IDF_TOOLS_PATH)"
-	git clone --recursive --branch "$(IDF_BRANCH)" https://github.com/espressif/esp-idf.git "$(IDF_PATH)"
+	git clone --recursive --branch "$(IDF_BRANCH)" https://github.com/espressif/esp-idf.git "$(IDF_PATH)" --depth=1 --shallow-submodules
 	#cd "$(IDF_PATH)"; git checkout "$(IDF_COMMIT)"
 	cd "$(IDF_PATH)"; git submodule update --init --recursive
 	cd "$(IDF_PATH)"; bash install.sh all

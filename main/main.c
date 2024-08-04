@@ -4,6 +4,7 @@
 #include "bsp.h"
 #include "bsp/why2025_coproc.h"
 #include "bsp_device.h"
+#include "ch32v203prog.h"
 #include "hardware/why2025.h"
 #include "pax_gfx.h"
 #include "pax_gui.h"
@@ -15,6 +16,9 @@
 #include <esp_log.h>
 #include <esp_ota_ops.h>
 #include <esp_system.h>
+#include <esp_timer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 
 
@@ -103,9 +107,15 @@ pgui_grid_t gui = PGUI_NEW_GRID(
     &PGUI_NEW_BUTTON("World!")
 );
 
+extern void rvswd_test();
+
 pax_buf_t gfx;
-void      app_main(void) {
-    esp_log_level_set("bsp-device", ESP_LOG_DEBUG);
+void      draw_text(char const *text) {
+    pax_background(&gfx, 0);
+    pax_center_text(&gfx, 0xff000000, pax_font_saira_condensed, pax_font_saira_condensed->default_size, 400, 240, text);
+}
+
+void app_main(void) {
     display_version();
     bsp_init();
 
@@ -117,6 +127,9 @@ void      app_main(void) {
     uint32_t dev_id = bsp_dev_register(&tree);
     bsp_disp_backlight(dev_id, 0, 65535);
 
+    rvswd_test();
+    bsp_disp_backlight(dev_id, 0, 65535);
+
     pgui_calc_layout(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL);
     pax_background(&gfx, pgui_theme_default.bg_col);
     pgui_draw(&gfx, (pgui_elem_t *)&gui, NULL);
@@ -125,30 +138,13 @@ void      app_main(void) {
     while (true) {
         bsp_event_t event;
         if (bsp_event_wait(&event, UINT64_MAX)) {
-            char const *const tab[] = {
-                [BSP_INPUT_EVENT_PRESS]   = "pressed",
-                [BSP_INPUT_EVENT_HOLD]    = "held",
-                [BSP_INPUT_EVENT_RELEASE] = "released",
-            };
-            ESP_LOGI(
-                "main",
-                "Dev %" PRIu32 " ep %" PRIu8 " input %d nav input %d raw input %d %s modkey %04" PRIx32,
-                event.input.dev_id,
-                event.input.endpoint,
-                event.input.input,
-                event.input.nav_input,
-                event.input.raw_input,
-                tab[event.input.type],
-                event.input.modkeys
-            );
             pgui_event_t p_event = {
-                     .type    = event.input.type,
-                     .input   = event.input.nav_input,
-                     .value   = event.input.text_input,
-                     .modkeys = event.input.modkeys,
+                .type    = event.input.type,
+                .input   = event.input.nav_input,
+                .value   = event.input.text_input,
+                .modkeys = event.input.modkeys,
             };
             pgui_resp_t resp = pgui_event(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL, p_event);
-            ESP_LOGI("main", "Resp: %d", resp);
             if (resp) {
                 pgui_redraw(&gfx, (pgui_elem_t *)&gui, NULL);
                 bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));

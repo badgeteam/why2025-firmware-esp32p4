@@ -7,9 +7,11 @@
 
 #include <driver/gpio.h>
 #include <driver/i2c.h>
+#include <driver/sdmmc_host.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <sdmmc_cmd.h>
 #include <string.h>
 
 
@@ -22,6 +24,9 @@ static void              ch32_thread();
 static void              ch32_isr(void *arg);
 static uint32_t          ch32_input_dev_id;
 static uint32_t          ch32_input_dev_ep;
+static sdmmc_card_t      c6_card;
+static uint8_t           c6_cis_buf[256];
+static sdmmc_host_t      sdmmc_host = SDMMC_HOST_DEFAULT();
 
 // Initialise the co-processor drivers.
 esp_err_t bsp_why2025_coproc_init() {
@@ -138,6 +143,7 @@ IRAM_ATTR static void ch32_isr(void *arg) {
     portYIELD_FROM_ISR();
 }
 
+// Set the display backlight value.
 esp_err_t ch32_set_display_backlight(uint16_t value) {
     xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     uint8_t buffer[3];
@@ -149,6 +155,7 @@ esp_err_t ch32_set_display_backlight(uint16_t value) {
     return res;
 }
 
+// Set the keyboard backlight value.
 esp_err_t ch32_set_keyboard_backlight(uint16_t value) {
     xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     uint8_t buffer[3];
@@ -160,6 +167,54 @@ esp_err_t ch32_set_keyboard_backlight(uint16_t value) {
     return res;
 }
 
+// Get the display backlight value.
+esp_err_t ch32_get_display_backlight(uint16_t *value) {
+    if (!value)
+        return ESP_OK;
+    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
+    esp_err_t res = i2c_master_write_read_device(
+        BSP_I2CINT_NUM,
+        BSP_CH32_ADDR,
+        (uint8_t const[]){11}, // I2C_REG_DISPLAY_BACKLIGHT_0
+        1,
+        value,
+        2,
+        portMAX_DELAY
+    );
+    xSemaphoreGive(ch32_semaphore);
+    return res;
+}
+
+// Get the keyboard backlight value.
+esp_err_t ch32_get_keyboard_backlight(uint16_t *value) {
+    if (!value)
+        return ESP_OK;
+    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
+    esp_err_t res = i2c_master_write_read_device(
+        BSP_I2CINT_NUM,
+        BSP_CH32_ADDR,
+        (uint8_t const[]){13}, // I2C_REG_KEYBOARD_BACKLIGHT_0
+        1,
+        value,
+        2,
+        portMAX_DELAY
+    );
+    xSemaphoreGive(ch32_semaphore);
+    return res;
+}
+
+// Enable/disable the audio amplifier.
+esp_err_t bsp_amplifier_control(bool enable) {
+    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
+    uint8_t buffer[2];
+    buffer[0]     = 16; // I2C_REG_AMPLIFIER_ENABLE
+    buffer[1]     = enable ? 1 : 0;
+    esp_err_t res = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    xSemaphoreGive(ch32_semaphore);
+    return res;
+}
+
+// Enable/disable the ESP32-C6 via RESET and BOOT pins.
 esp_err_t bsp_c6_control(bool enable, bool boot) {
     xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     uint8_t buffer[2];
@@ -170,15 +225,25 @@ esp_err_t bsp_c6_control(bool enable, bool boot) {
     return res;
 }
 
-
-esp_err_t bsp_amplifier_control(bool enable) {
-    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
-    uint8_t buffer[2];
-    buffer[0]     = 16; // I2C_REG_AMPLIFIER_ENABLE
-    buffer[1]     = enable ? 1 : 0;
-    esp_err_t res = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
-    xSemaphoreGive(ch32_semaphore);
-    return res;
+// Initialize the ESP32-C6 after it was (re-)enabled.
+esp_err_t bsp_c6_init() {
+    sdmmc_host.flags         = SDMMC_HOST_FLAG_4BIT;
+    sdmmc_host.max_freq_khz  = SDMMC_FREQ_HIGHSPEED;
+    sdmmc_host.flags        |= SDMMC_HOST_FLAG_ALLOC_ALIGNED_BUF;
+    esp_err_t res;
+    while (1) {
+        res = sdmmc_card_init(&sdmmc_host, &c6_card);
+        if (!res) {
+            break;
+        }
+        ESP_LOGE(TAG, "SDIO error: %s", esp_err_to_name(res));
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+    sdmmc_card_print_info(stdout, &c6_card);
+    size_t cis_size = 0;
+    sdmmc_io_get_cis_data(&c6_card, c6_cis_buf, sizeof(c6_cis_buf), &cis_size);
+    sdmmc_io_print_cis_info(c6_cis_buf, cis_size, NULL);
+    return ESP_OK;
 }
 
 

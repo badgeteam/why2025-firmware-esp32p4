@@ -27,6 +27,21 @@
 // I²C address for the CH32V203.
 #define BSP_CH32_ADDR    0x5f
 
+#define BSP_SDIO_CLK   17
+#define BSP_SDIO_CMD   16
+#define BSP_SDIO_D0    18
+#define BSP_SDIO_D1    19
+#define BSP_SDIO_D2    20
+#define BSP_SDIO_D3    21
+#define BSP_SDIO_D4    -1
+#define BSP_SDIO_D5    -1
+#define BSP_SDIO_D6    -1
+#define BSP_SDIO_D7    -1
+#define BSP_SDIO_CD    -1
+#define BSP_SDIO_WP    -1
+#define BSP_SDIO_WIDTH 4
+#define BSP_SDIO_FLAGS 0
+
 /* ==== Mipi DSI parameters ==== */
 #define BSP_DSI_DPI_CLK_MHZ    30
 #define BSP_DSI_LCD_H_RES      480
