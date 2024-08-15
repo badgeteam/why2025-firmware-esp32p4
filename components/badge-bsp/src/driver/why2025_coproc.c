@@ -30,7 +30,7 @@ esp_err_t bsp_why2025_coproc_init() {
     if (ch32_int_semaphore == NULL || ch32_semaphore == NULL) {
         return ESP_ERR_NO_MEM;
     }
-    if (xTaskCreate(ch32_thread, "CH32 driver", 2048, NULL, 0, &ch32_thread_handle) != pdTRUE) {
+    if (xTaskCreatePinnedToCore(ch32_thread, "CH32 driver", 4096, NULL, 24, &ch32_thread_handle, 1) != pdTRUE) {
         return ESP_ERR_NO_MEM;
     }
 

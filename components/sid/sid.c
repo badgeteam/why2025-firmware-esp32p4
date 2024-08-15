@@ -54,7 +54,7 @@ static void render_audio() {
     }
 }
 
-#include "phantom.inc"
+#include "commando.inc"
 
 static void player_task(void *pvParameters) {
     while (1) {
@@ -67,7 +67,7 @@ static void player_task(void *pvParameters) {
 esp_err_t sid_init(i2s_chan_handle_t i2s_handle) {
     player_i2s_handle = i2s_handle;
     libcsid_init(16000, SIDMODEL_6581);
-    libcsid_load((unsigned char *)&phantom_of_the_opera_sid, phantom_of_the_opera_sid_len, 0);
+    libcsid_load((unsigned char *)&commando_sid, commando_sid_len, 0);
 
     printf("SID Title: %s\n", libcsid_gettitle());
     printf("SID Author: %s\n", libcsid_getauthor());

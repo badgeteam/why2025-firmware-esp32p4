@@ -5,6 +5,7 @@
 
 #include "bsp_input.h"
 
+#include <stdint.h>
 
 // WHY2025 badge built-in keyboard.
 keymap_t const bsp_keymap_why2025 = {
@@ -36,3 +37,11 @@ keymap_t const bsp_keymap_why2025 = {
     },
     // clang-format on
 };
+
+bsp_input_t why2025_map_keys(uint32_t scancode) {
+    if (scancode < bsp_keymap_why2025.max_scancode) {
+        return bsp_keymap_why2025.keymap[scancode];
+    } else {
+        return 0x00;
+    }
+}

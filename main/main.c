@@ -23,11 +23,14 @@
 #include "rvswd.h"
 #include <string.h>
 #include "pax_codecs.h"
+#include "pax_gfx.h"
 
 #include "usb/usb_host.h"
 #include "usb/hid_host.h"
 #include "usb/hid_usage_keyboard.h"
 #include "usb/hid_usage_mouse.h"
+
+#include "xtulator.h"
 
 extern const uint8_t ch32_firmware_start[] asm("_binary_ch32_firmware_bin_start");
 extern const uint8_t ch32_firmware_end[] asm("_binary_ch32_firmware_bin_end");
@@ -46,11 +49,65 @@ bool start_demo = false;
 
 i2s_chan_handle_t i2s_handle = NULL;
 
-uint8_t volume = 120;
+uint8_t volume = 100;
 uint8_t screen_brightness = 51;
 uint8_t keyboard_brightness = 51;
 
-esp_err_t i2s_test() {
+typedef struct _audio_player_cfg {
+    uint8_t* buffer;
+    size_t   size;
+    bool     free_buffer;
+} audio_player_cfg_t;
+
+void audio_player_task(void* arg) {
+    audio_player_cfg_t* config        = (audio_player_cfg_t*) arg;
+    size_t              sample_length = config->size;
+    uint8_t*            sample_buffer = config->buffer;
+
+    size_t count;
+    size_t position = 0;
+
+    while (1) {
+        position = 0;
+        while (position < sample_length) {
+            size_t length = sample_length - position;
+            if (length > 256) length = 256;
+            uint8_t buffer[256];
+            memcpy(buffer, &sample_buffer[position], length);
+            for (size_t l = 0; l < length; l += 2) {
+                int16_t* sample = (int16_t*) &buffer[l];
+                *sample *= 0.55;
+            }
+            i2s_channel_write(i2s_handle, (char const *)buffer, length, &count, portMAX_DELAY);
+            if (count != length) {
+                printf("i2s_write_bytes: count (%d) != length (%d)\n", count, length);
+                abort();
+            }
+            position += length;
+        }
+    }
+
+    //i2s_zero_dma_buffer(0);  // Fill buffer with silence
+    if (config->free_buffer) free(sample_buffer);
+    vTaskDelete(NULL);  // Tell FreeRTOS that the task is done
+}
+
+extern const uint8_t boot_snd_start[] asm("_binary_boot_snd_start");
+extern const uint8_t boot_snd_end[] asm("_binary_boot_snd_end");
+
+audio_player_cfg_t bootsound;
+
+void play_bootsound() {
+    TaskHandle_t handle;
+
+    bootsound.buffer      = (uint8_t*) (boot_snd_start);
+    bootsound.size        = boot_snd_end - boot_snd_start;
+    bootsound.free_buffer = false;
+
+    xTaskCreate(&audio_player_task, "Audio player", 4096, (void*) &bootsound, 10, &handle);
+}
+
+esp_err_t i2s_init() {
     // I2S audio
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(0, I2S_ROLE_MASTER);
 
@@ -100,12 +157,6 @@ esp_err_t i2s_test() {
     res = es8156_codec_set_voice_volume(volume);
     if (res != ESP_OK) {
         ESP_LOGE(TAG, "Set volume on codec failed");
-        return res;
-    }
-
-    res = sid_init(i2s_handle);
-    if (res != ESP_OK) {
-        ESP_LOGE(TAG, "Initializing SID emulator failed");
         return res;
     }
 
@@ -1452,7 +1503,7 @@ void app_main(void) {
         draw_text("SD card OK");
     }
 
-    res = sdio_test();
+    /*res = sdio_test();
     if (res != ESP_OK) {
         char text[128];
         sprintf(text, "SDIO failed:\n%s", esp_err_to_name(res));
@@ -1460,7 +1511,7 @@ void app_main(void) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     } else {
         draw_text("SDIO OK");
-    }
+    }*/
 
     //usb_host_test();
 
@@ -1532,9 +1583,20 @@ void app_main(void) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }*/
 
-    i2s_test();
+    i2s_init();
 
-    while (1) {
+    /*res = sid_init(i2s_handle);
+    if (res != ESP_OK) {
+        ESP_LOGE(TAG, "Initializing SID emulator failed");
+        return res;
+    }*/
+
+    //play_bootsound();
+
+    pax_background(display_test_get_buf(), 0xFF000000);
+    xtulator_main();
+
+    /*while (1) {
         draw_test();
 
         start_demo = false;
@@ -1559,10 +1621,12 @@ void app_main(void) {
             //ESP_LOGI("MAIN", "Delay %d, took %d", delay, after - now);
             vTaskDelay(pdMS_TO_TICKS(delay));
         }
-    }
+    }*/
+
+    printf("End of main reached.\r\n");
 }
 
-void demo_call(bsp_input_t input, bool pressed) {
+/*void demo_call(bsp_input_t input, bool pressed) {
     if (input == 42 && pressed) {
         start_demo = true;
     } else if (input == 1 && pressed) {
@@ -1602,3 +1666,4 @@ void demo_call(bsp_input_t input, bool pressed) {
     }
     xSemaphoreGive(demo_semaphore);
 }
+*/

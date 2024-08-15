@@ -8,6 +8,8 @@
 #include "freertos/queue.h"
 #include "driver/gpio.h"
 
+#include "bsp_keymap.h"
+
 static char const    TAG[] = "bsp";
 static QueueHandle_t queue;
 
@@ -50,11 +52,11 @@ extern void demo_call(bsp_input_t input, bool pressed);
 // Call to notify the BSP of a button press.
 void bsp_raw_button_pressed(uint32_t dev_id, bsp_input_t input) {
     ESP_LOGI(TAG, "Device 0x%08" PRIx32 " input %d pressed", dev_id, input);
-    demo_call(input, true);
+    demo_call(why2025_map_keys(input), true);
 }
 
 // Call to notify the BSP of a button release.
 void bsp_raw_button_released(uint32_t dev_id, bsp_input_t input) {
     ESP_LOGI(TAG, "Device 0x%08" PRIx32 " input %d released", dev_id, input);
-    demo_call(input, false);
+    demo_call(why2025_map_keys(input), false);
 }
