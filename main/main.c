@@ -49,7 +49,7 @@ bool start_demo = false;
 
 i2s_chan_handle_t i2s_handle = NULL;
 
-uint8_t volume = 100;
+uint8_t volume = 150;
 uint8_t screen_brightness = 51;
 uint8_t keyboard_brightness = 51;
 

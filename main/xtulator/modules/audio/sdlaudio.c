@@ -35,6 +35,11 @@
 #include "../../debuglog.h"
 #include <sys/time.h>
 
+#include "freertos/FreeRTOS.h"
+#include "driver/i2s_std.h"
+
+extern i2s_chan_handle_t i2s_handle;
+
 int16_t sdlaudio_buffer[SAMPLE_BUFFER], sdlaudio_bufferpos = 0;
 double sdlaudio_rateFast;
 
@@ -57,10 +62,34 @@ void sdlaudio_fill(void* udata, uint8_t* stream, int len) {
 }
 
 int sdlaudio_init(MACHINE_t* machine) {
+	sdlaudio_useMachine = machine;
+	sdlaudio_timer = timing_addTimer(sdlaudio_generateSample, NULL, SAMPLE_RATE, TIMING_ENABLED);
 	return 0;
 }
 
 void sdlaudio_bufferSample(int16_t val) {
+	if (sdlaudio_bufferpos == SAMPLE_BUFFER) { //this shouldn't happen
+		return;
+	}
+
+	sdlaudio_buffer[sdlaudio_bufferpos++] = val;
+
+	if (sdlaudio_bufferpos < (int)((double)(SAMPLE_BUFFER) * 0.5)) {
+		sdlaudio_updateTiming = SDLAUDIO_TIMING_FAST;
+	}
+	else if (sdlaudio_bufferpos >= (int)((double)(SAMPLE_BUFFER) * 0.75)) {
+		sdlaudio_updateTiming = SDLAUDIO_TIMING_NORMAL;
+	}
+
+	if (sdlaudio_bufferpos == SAMPLE_BUFFER) {
+		//timing_timerDisable(sdlaudio_timer);
+		size_t count = 0;
+		i2s_channel_write(i2s_handle, (char const *)sdlaudio_buffer, sdlaudio_bufferpos, &count, portMAX_DELAY);
+		/*if (count != len) {
+			printf("i2s_write_bytes: count (%d) != length (%d)\n", count, length);
+		}*/
+		sdlaudio_bufferpos = 0;
+	}
 }
 
 void sdlaudio_updateSampleTiming() {
@@ -92,5 +121,6 @@ void sdlaudio_generateSample(void* dummy) {
 		val += blaster_getSample(&sdlaudio_useMachine->blaster) / 3;
 	}
 
+	sdlaudio_bufferSample(val);
 	sdlaudio_bufferSample(val);
 }

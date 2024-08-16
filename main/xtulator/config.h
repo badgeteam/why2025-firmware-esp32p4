@@ -37,7 +37,7 @@
 #define VIDEO_CARD_EGA		2
 #define VIDEO_CARD_VGA		3
 
-#define SAMPLE_RATE		48000
+#define SAMPLE_RATE		16000//48000
 #define SAMPLE_BUFFER	4800
 
 #ifdef _WIN32
