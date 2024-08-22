@@ -1402,150 +1402,19 @@ void rvswd_test(void) {
 
 void app_main(void) {
 
+    gpio_install_isr_service(0);
+
     demo_semaphore = xSemaphoreCreateBinary();
     xSemaphoreGive(demo_semaphore);
 
     display_version();
-    bsp_init();
     display_test();
-
-    /*rvswd_test();
-
-    uint16_t version;
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    ch32_get_firmware_version(&version);
-    printf("Firmware version %"PRIu16"\r\n", version);
-
-    if (version != 2) {
-        while (1) {
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
-    }*/
-
-    ch32_set_display_backlight(screen_brightness*5);
-    ch32_set_keyboard_backlight(keyboard_brightness*5);
-    bsp_c6_control(true, true);
-    //bsp_c6_control(false, true);
 
     pax_buf_t clipbuffer;
     pax_buf_init(&clipbuffer, NULL, 800, 480, PAX_BUF_1_PAL);
-    //pax_buf_set_orientation(&clipbuffer, PAX_O_ROT_CW);
-
-    sd_pwr_ctrl_ldo_config_t ldo_config = {
-        .ldo_chan_id = 4,
-    };
-
-    sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
-    esp_err_t res = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
-    if (res != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to create a new on-chip LDO power control driver");
-        return;
-    }
-
-    res = sd_test(pwr_ctrl_handle);
-    if (res != ESP_OK) {
-        char text[128];
-        sprintf(text, "SD card failed:\n%s", esp_err_to_name(res));
-        draw_text(text);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    } else {
-        draw_text("SD card OK");
-    }
-
-    res = sdio_test();
-    if (res != ESP_OK) {
-        char text[128];
-        sprintf(text, "SDIO failed:\n%s", esp_err_to_name(res));
-        draw_text(text);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    } else {
-        draw_text("SDIO OK");
-    }
-
-    //usb_host_test();
-
-    /*
-    // Test pins of USB port on expansion header
-    gpio_config_t dp_config = {
-        .pin_bit_mask = BIT64(26),
-        .mode         = GPIO_MODE_OUTPUT,
-        .pull_up_en   = true,
-        .pull_down_en = false,
-        .intr_type    = GPIO_INTR_DISABLE,
-    };
-    res = gpio_config(&dp_config);
-    if (res != ESP_OK) {
-        return;
-    }
-
-    gpio_config_t dn_config = {
-        .pin_bit_mask = BIT64(27),
-        .mode         = GPIO_MODE_OUTPUT,
-        .pull_up_en   = true,
-        .pull_down_en = false,
-        .intr_type    = GPIO_INTR_DISABLE,
-    };
-    res = gpio_config(&dn_config);
-    if (res != ESP_OK) {
-        return;
-    }
-
-    gpio_set_level(26, 1);
-    gpio_set_level(27, 1);*/
-
-    // CH32 stuff
-
-    /*gpio_config_t swio_config = {
-        .pin_bit_mask = BIT64(22),
-        .mode         = GPIO_MODE_OUTPUT_OD,
-        .pull_up_en   = true,
-        .pull_down_en = false,
-        .intr_type    = GPIO_INTR_DISABLE,
-    };
-    res = gpio_config(&swio_config);
-    if (res != ESP_OK) {
-        return;
-    }
-
-    gpio_config_t swck_config = {
-        .pin_bit_mask = BIT64(23),
-        .mode         = GPIO_MODE_OUTPUT_OD,
-        .pull_up_en   = true,
-        .pull_down_en = false,
-        .intr_type    = GPIO_INTR_DISABLE,
-    };
-    res = gpio_config(&swck_config);
-    if (res != ESP_OK) {
-        return;
-    }
-
-    gpio_set_level(22, 1);
-    gpio_set_level(23, 1);*/
-
-    /*ESP_LOGW(TAG, "TEST PINS");
-    while (1) {
-        gpio_set_level(22, 1);
-        gpio_set_level(23, 0);
-        vTaskDelay(pdMS_TO_TICKS(100));
-        gpio_set_level(22, 0);
-        gpio_set_level(23, 1);
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }*/
-
-    i2s_test();
 
     while (1) {
-        draw_test();
-
-        start_demo = false;
-        while (!start_demo) {
-            xSemaphoreTake(demo_semaphore, portMAX_DELAY);
-            if (current_key < 0) {
-                draw_test();
-            } else {
-                draw_key(current_key);
-            }
-        }
+        //draw_test();
         pax_techdemo_init(display_test_get_buf(), &clipbuffer);
         bool finished = false;
         size_t start = esp_timer_get_time() / 1000;
@@ -1554,51 +1423,13 @@ void app_main(void) {
             finished = pax_techdemo_draw(now - start);
             size_t after = esp_timer_get_time() / 1000;
             display_test_flush();
-            int delay = 33 - (after - now);
+            int delay = 50 - (after - now);
             if (delay < 0) delay = 0;
-            //ESP_LOGI("MAIN", "Delay %d, took %d", delay, after - now);
             vTaskDelay(pdMS_TO_TICKS(delay));
         }
     }
 }
 
 void demo_call(bsp_input_t input, bool pressed) {
-    if (input == 42 && pressed) {
-        start_demo = true;
-    } else if (input == 1 && pressed) {
-        if (volume > 0x00) {
-            volume--;
-        }
-        es8156_codec_set_voice_volume(volume);
-    } else if (input == 2 && pressed) {
-        if (volume < 0xFF) {
-            volume++;
-        }
-        es8156_codec_set_voice_volume(volume);
-    } else if (input == 5 && pressed) {
-        if (screen_brightness > 0) {
-            screen_brightness--;
-        }
-    ch32_set_display_backlight(screen_brightness*5);
-    } else if (input == 6 && pressed) {
-        if (screen_brightness < 51) {
-            screen_brightness++;
-        }
-        ch32_set_display_backlight(screen_brightness*5);
-    } else if (input == 7 && pressed) {
-        if (keyboard_brightness > 0) {
-            keyboard_brightness--;
-        }
-        ch32_set_keyboard_backlight(keyboard_brightness*5);
-    } else if (input == 0x18 && pressed) {
-        if (keyboard_brightness < 51) {
-            keyboard_brightness++;
-        }
-        ch32_set_keyboard_backlight(keyboard_brightness*5);
-    } else if (pressed) {
-        current_key = input;
-    } else {
-        current_key = -1;
-    }
-    xSemaphoreGive(demo_semaphore);
+
 }
