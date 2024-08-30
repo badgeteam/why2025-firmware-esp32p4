@@ -26,11 +26,6 @@ char const TAG[] = "main";
 
 
 
-void display_version() {
-    esp_app_desc_t const *app_description = esp_app_get_description();
-    printf("BADGE.TEAM %s launcher firmware v%s\n", app_description->project_name, app_description->version);
-}
-
 bsp_input_devtree_t const input_tree = {
     .common = {
         .type = BSP_EP_INPUT_WHY2025_CH32,
@@ -120,6 +115,8 @@ pax_buf_t *gfx;
 void app_main(void) {
     esp_err_t res;
     bsp_preinit();
+
+    // Read CH32 version.
     uint16_t version = 0xffff;
     res              = bsp_ch32_version(&version);
     if (res) {
@@ -135,6 +132,8 @@ void app_main(void) {
     } else {
         ESP_LOGI(TAG, "CH32 version 0x%04" PRIx16, version);
     }
+
+    // Program the CH32 if there is a mismatch.
     if (res || version != BSP_CH32_VERSION) {
         ESP_LOGI(TAG, "Programming CH32");
         rvswd_handle_t handle = {
@@ -144,13 +143,9 @@ void app_main(void) {
         ch32_program(&handle, ch32_firmware_start, ch32_firmware_end - ch32_firmware_start);
         esp_restart();
     }
-    display_version();
-    bsp_init();
 
-    // gfx = pax_buf_init(NULL, BSP_DSI_LCD_H_RES, BSP_DSI_LCD_V_RES, PAX_BUF_16_565RGB);
-    // pax_buf_set_orientation(gfx, PAX_O_ROT_CW);
-    // pax_background(gfx, 0);
-    // pax_buf_reversed(gfx, false);
+    // Initialize the hardware.
+    bsp_init();
 
     uint32_t dev_id = bsp_dev_register(&tree, true);
     gfx             = pax_pax_buf_from_ep(dev_id, 0);
