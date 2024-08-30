@@ -9,8 +9,13 @@ idf_component_register(
         src/bsp_color.c
         src/bsp_device.c
         src/bsp_keymap.c
+        src/bsp_pax.c
         src/bsp.c
     INCLUDE_DIRS
+        pub_include
         include
-    REQUIRES pax-gfx driver esp_lcd
+    REQUIRES pax_gfx driver esp_lcd
 )
+
+add_subdirectory(badgelib)
+target_link_libraries(${COMPONENT_LIB} PUBLIC badgelib)

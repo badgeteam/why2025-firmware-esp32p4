@@ -7,6 +7,7 @@ IDF_BRANCH ?= release/v5.3
 #IDF_COMMIT ?= c57b352725ab36f007850d42578d2c7bc858ed47
 IDF_EXPORT_QUIET ?= 1
 IDF_GITHUB_ASSETS ?= dl.espressif.com/github_assets
+MAKEFLAGS += --silent
 
 SHELL := /usr/bin/env bash
 
@@ -16,7 +17,7 @@ export IDF_GITHUB_ASSETS
 # General targets
 
 .PHONY: all
-all: build flash
+all: $(BUILDDIR) flash
 
 .PHONY: install
 install: flash
@@ -31,7 +32,7 @@ submodules:
 	git submodule update --init --recursive
 
 .PHONY: sdk
-sdk: build/badge_export_symbols.cmake
+sdk: $(BUILDDIR)/badge_export_symbols.cmake
 	rm -rf "$(IDF_PATH)"
 	rm -rf "$(IDF_TOOLS_PATH)"
 	git clone --recursive --branch "$(IDF_BRANCH)" https://github.com/espressif/esp-idf.git "$(IDF_PATH)" --depth=1 --shallow-submodules
@@ -57,16 +58,32 @@ fullclean:
 
 # Building
 
-build/badge_export_symbols.cmake: tools/exported.txt tools/symbol_export.py
-	mkdir -p build
-	./tools/symbol_export.py --symbols tools/exported.txt --cmake build/badge_export_symbols.cmake
+$(BUILDDIR)/badge_export_symbols.cmake: tools/exported.txt tools/symbol_export.py
+	mkdir -p $(BUILDDIR)
+	./tools/symbol_export.py --address 0x43F80000\
+	    --symbols tools/exported.txt \
+		--cmake $(BUILDDIR)/badge_export_symbols.cmake \
+		--ldscript $(BUILDDIR)/badge_jump_table.ld
+
+badgesdk: $(BUILDDIR)/badge_export_symbols.cmake $(PAX_HDRS) $(shell find -name '*.h' -or -name '*.hpp')
+	rm -rf badgesdk/include
+	mkdir -p badgesdk/ld
+	mkdir -p badgesdk/include/gui
+	cp components/badge-bsp/pub_include/* badgesdk/include/
+	cp components/pax-gfx/src/*.h badgesdk/include/
+	cp components/pax-gfx/src/gui/*.h badgesdk/include/gui/
+	cp $(BUILDDIR)/badge_jump_table.ld badgesdk/ld/			
+	cp tools/badgesdk.ld badgesdk/ld/linker.ld
 
 .PHONY: build
-build: build/badge_export_symbols.cmake
-	source "$(IDF_PATH)/export.sh" && \
-		idf.py build && \
-		./tools/symbol_export.py --symbols tools/exported.txt --binary build/why2025-firmware-esp32p4.elf \
-			--assembler riscv32-esp-elf-gcc --table build/badge_jump_table.elf --address 0x43F80000
+build: $(BUILDDIR)/badge_export_symbols.cmake
+	source "$(IDF_PATH)/export.sh" >/dev/null && \
+	idf.py $(BUILDDIR) && \
+	echo Building jump tables && \
+	./tools/symbol_export.py --address 0x43F80000 \
+		--symbols tools/exported.txt --binary $(BUILDDIR)/why2025-firmware-esp32p4.elf \
+		--table $(BUILDDIR)/badge_jump_table.elf --assembler riscv32-esp-elf-gcc && \
+	riscv32-esp-elf-objcopy -O binary $(BUILDDIR)/badge_jump_table.elf $(BUILDDIR)/badge_jump_table.bin
 
 .PHONY: image
 image:
@@ -76,8 +93,21 @@ image:
 # Hardware
 
 .PHONY: flash
-flash: build
-	source "$(IDF_PATH)/export.sh" && idf.py flash -p $(PORT)
+flash: $(BUILDDIR)
+	source "$(IDF_PATH)/export.sh" && \
+	idf.py flash -p $(PORT) && \
+	esptool.py \
+		-b 921600 --port $(PORT) \
+		write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB \
+		0x210000 $(BUILDDIR)/badge_jump_table.bin
+
+.PHONY: appfs
+appfs:
+	source "$(IDF_PATH)/export.sh" && \
+	esptool.py \
+		-b 921600 --port $(PORT) \
+		write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB \
+		0x110000 appfs.bin
 
 .PHONY: erase
 erase:

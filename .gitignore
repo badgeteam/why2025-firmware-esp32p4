@@ -12,3 +12,4 @@ esp-idf-tools
 dependencies.lock
 .IDF_PATH
 .IDF_TOOLS_PATH
+badgesdk

@@ -1,5 +1,5 @@
 [submodule "components/pax-gfx"]
-	path = components/pax-gfx
+	path = components/pax_gfx
 	url = https://robotman2412@github.com/robotman2412/pax-graphics
 [submodule "components/appfs"]
 	path = components/appfs
@@ -7,3 +7,6 @@
 [submodule "components/esp32-component-ch32v203prog"]
 	path = components/esp32-component-ch32v203prog
 	url = https://github.com/badgeteam/esp32-component-ch32v203prog
+[submodule "components/badge-bsp/badgelib"]
+	path = components/badge-bsp/badgelib
+	url = https://badgeteam@github.com/badgeteam/badgelib

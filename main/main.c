@@ -1,9 +1,11 @@
 
 // SPDX-License-Identifier: MIT
 
+#include "app.h"
 #include "bsp.h"
 #include "bsp/why2025_coproc.h"
 #include "bsp_device.h"
+#include "bsp_pax.h"
 #include "ch32v203prog.h"
 #include "hardware/why2025.h"
 #include "pax_gfx.h"
@@ -72,6 +74,7 @@ bsp_display_devtree_t const disp_tree = {
     .v_sync = BSP_DSI_LCD_VSYNC,
     .backlight_endpoint = 0,
     .backlight_index    = 0,
+    .orientation        = BSP_O_ROT_CW,
 };
 bsp_devtree_t const tree = {
     .input_count = 2,
@@ -109,31 +112,47 @@ pgui_grid_t gui = PGUI_NEW_GRID(
 
 extern void rvswd_test();
 
-pax_buf_t gfx;
-void      draw_text(char const *text) {
-    pax_background(&gfx, 0);
-    pax_center_text(&gfx, 0xff000000, pax_font_saira_condensed, pax_font_saira_condensed->default_size, 400, 240, text);
+pax_buf_t *gfx;
+
+void draw_text(char const *text) {
+    pax_background(gfx, 0);
+    pax_center_text(gfx, 0xff000000, pax_font_saira_condensed, pax_font_saira_condensed->default_size, 400, 240, text);
 }
 
 void app_main(void) {
     display_version();
     bsp_init();
 
-    pax_buf_init(&gfx, NULL, BSP_DSI_LCD_H_RES, BSP_DSI_LCD_V_RES, PAX_BUF_16_565RGB);
-    pax_buf_set_orientation(&gfx, PAX_O_ROT_CW);
-    pax_background(&gfx, 0);
-    pax_buf_reversed(&gfx, false);
+    // gfx = pax_buf_init(NULL, BSP_DSI_LCD_H_RES, BSP_DSI_LCD_V_RES, PAX_BUF_16_565RGB);
+    // pax_buf_set_orientation(gfx, PAX_O_ROT_CW);
+    // pax_background(gfx, 0);
+    // pax_buf_reversed(gfx, false);
 
-    uint32_t dev_id = bsp_dev_register(&tree);
+    uint32_t dev_id = bsp_dev_register(&tree, true);
+    gfx             = pax_pax_buf_from_ep(dev_id, 0);
     bsp_disp_backlight(dev_id, 0, 65535);
 
-    rvswd_test();
-    bsp_disp_backlight(dev_id, 0, 65535);
+    // rvswd_test();
+    // bsp_disp_backlight(dev_id, 0, 65535);
 
-    pgui_calc_layout(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL);
-    pax_background(&gfx, pgui_theme_default.bg_col);
-    pgui_draw(&gfx, (pgui_elem_t *)&gui, NULL);
-    bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
+    pgui_calc_layout(pax_buf_get_dims(gfx), (pgui_elem_t *)&gui, NULL);
+    pax_background(gfx, pgui_theme_default.bg_col);
+    pgui_draw(gfx, (pgui_elem_t *)&gui, NULL);
+    bsp_disp_update(dev_id, 0, pax_buf_get_pixels(gfx));
+
+    esp_err_t res = appfsInit(APPFS_PART_TYPE, APPFS_PART_SUBTYPE);
+    if (res) {
+        ESP_LOGE("main", "AppFS init failed: %s", esp_err_to_name(res));
+    } else {
+        appfs_handle_t fd = appfsOpen("app_ok");
+        app_info_t     info;
+        ESP_LOGI("main", "Starting app...");
+        app_info(fd, &info);
+        res = app_start(fd, &info);
+        if (res) {
+            ESP_LOGE("main", "App failed to start: %s", esp_err_to_name(res));
+        }
+    }
 
     while (true) {
         bsp_event_t event;
@@ -144,10 +163,10 @@ void app_main(void) {
                 .value   = event.input.text_input,
                 .modkeys = event.input.modkeys,
             };
-            pgui_resp_t resp = pgui_event(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL, p_event);
+            pgui_resp_t resp = pgui_event(pax_buf_get_dims(gfx), (pgui_elem_t *)&gui, NULL, p_event);
             if (resp) {
-                pgui_redraw(&gfx, (pgui_elem_t *)&gui, NULL);
-                bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
+                pgui_redraw(gfx, (pgui_elem_t *)&gui, NULL);
+                bsp_disp_update(dev_id, 0, pax_buf_get_pixels(gfx));
             }
         }
     }
