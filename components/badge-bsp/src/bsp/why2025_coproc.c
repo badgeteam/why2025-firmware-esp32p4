@@ -28,6 +28,10 @@ static sdmmc_card_t      c6_card;
 static uint8_t           c6_cis_buf[256];
 static sdmmc_host_t      sdmmc_host = SDMMC_HOST_DEFAULT();
 
+
+
+/* ==== platform-specific functions ==== */
+
 // Get the C6 version.
 esp_err_t bsp_ch32_version(uint16_t *ver) {
     if (!why2025_enable_i2cint)
@@ -247,6 +251,7 @@ esp_err_t bsp_c6_control(bool enable, bool boot) {
 
 // Initialize the ESP32-C6 after it was (re-)enabled.
 esp_err_t bsp_c6_init() {
+    // Find ESP32-C6 on SDIO bus.
     sdmmc_host.flags         = SDMMC_HOST_FLAG_4BIT;
     sdmmc_host.max_freq_khz  = SDMMC_FREQ_HIGHSPEED;
     sdmmc_host.flags        |= SDMMC_HOST_FLAG_ALLOC_ALIGNED_BUF;
@@ -259,10 +264,13 @@ esp_err_t bsp_c6_init() {
         ESP_LOGE(TAG, "SDIO error: %s", esp_err_to_name(res));
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+
+    // Print card info.
     sdmmc_card_print_info(stdout, &c6_card);
     size_t cis_size = 0;
     sdmmc_io_get_cis_data(&c6_card, c6_cis_buf, sizeof(c6_cis_buf), &cis_size);
     sdmmc_io_print_cis_info(c6_cis_buf, cis_size, NULL);
+
     return ESP_OK;
 }
 
