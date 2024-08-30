@@ -16,3 +16,6 @@ idf_component_register(
         include
     REQUIRES pax-gfx driver esp_lcd
 )
+
+add_subdirectory(badgelib)
+target_link_libraries(${COMPONENT_LIB} PUBLIC badgelib)

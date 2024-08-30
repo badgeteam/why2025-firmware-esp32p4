@@ -7,10 +7,11 @@
 #include "bsp_input.h"
 #include "bsp_keymap.h"
 
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include <refcount.h>
 
 
 
@@ -326,9 +327,9 @@ struct bsp_audio_driver {
 // Registered device.
 struct bsp_device {
     // BSP device ID.
-    uint32_t             id;
+    uint32_t id;
     // Device tree.
-    bsp_devtree_t const *tree;
+    rc_t     tree;
     union {
         struct {
             // Drivers for input endpoints.

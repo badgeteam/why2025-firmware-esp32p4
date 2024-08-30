@@ -97,7 +97,7 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
     esp_lcd_panel_dev_config_t lcd_config = {
         .bits_per_pixel = 16,
         .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-        .reset_gpio_num = dev->tree->disp_dev[endpoint]->common.reset_pin,
+        .reset_gpio_num = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->common.reset_pin,
         .flags = {
             .reset_active_high = false,
         },
@@ -124,14 +124,14 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
         .dpi_clock_freq_mhz = BSP_DSI_DPI_CLK_MHZ,
         .pixel_format       = LCD_COLOR_PIXEL_FORMAT_RGB565,
         .video_timing = {
-            .h_size            = dev->tree->disp_dev[endpoint]->width,
-            .v_size            = dev->tree->disp_dev[endpoint]->height,
-            .hsync_back_porch  = dev->tree->disp_dev[endpoint]->h_bp,
-            .hsync_pulse_width = dev->tree->disp_dev[endpoint]->h_sync,
-            .hsync_front_porch = dev->tree->disp_dev[endpoint]->h_fp,
-            .vsync_back_porch  = dev->tree->disp_dev[endpoint]->v_bp,
-            .vsync_pulse_width = dev->tree->disp_dev[endpoint]->v_sync,
-            .vsync_front_porch = dev->tree->disp_dev[endpoint]->v_fp,
+            .h_size            = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->width,
+            .v_size            = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->height,
+            .hsync_back_porch  = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->h_bp,
+            .hsync_pulse_width = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->h_sync,
+            .hsync_front_porch = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->h_fp,
+            .vsync_back_porch  = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->v_bp,
+            .vsync_pulse_width = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->v_sync,
+            .vsync_front_porch = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->v_fp,
         },
         // TODO: Figure out what this is and when to use it.
         .flags.use_dma2d = true,
@@ -186,8 +186,8 @@ void bsp_disp_dsi_update(bsp_device_t *dev, uint8_t endpoint, void const *frameb
         disp->disp_handle,
         0,
         0,
-        dev->tree->disp_dev[endpoint]->width,
-        dev->tree->disp_dev[endpoint]->height,
+        bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->width,
+        bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->height,
         framebuffer
     );
 }

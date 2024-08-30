@@ -126,7 +126,7 @@ void app_main(void) {
     pax_background(&gfx, 0);
     pax_buf_reversed(&gfx, false);
 
-    uint32_t dev_id = bsp_dev_register(&tree);
+    uint32_t dev_id = bsp_dev_register(&tree, true);
     bsp_disp_backlight(dev_id, 0, 65535);
 
     // rvswd_test();
