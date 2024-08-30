@@ -30,6 +30,8 @@ static sdmmc_host_t      sdmmc_host = SDMMC_HOST_DEFAULT();
 
 // Get the C6 version.
 esp_err_t bsp_ch32_version(uint16_t *ver) {
+    if (!why2025_enable_i2cint)
+        return ESP_ERR_TIMEOUT;
     xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     esp_err_t res = i2c_master_write_read_device(
         BSP_I2CINT_NUM,

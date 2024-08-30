@@ -117,15 +117,11 @@ extern uint8_t const ch32_firmware_end[] asm("_binary_ch32_firmware_bin_end");
 
 pax_buf_t *gfx;
 
-void draw_text(char const *text) {
-    pax_background(gfx, 0);
-    pax_center_text(gfx, 0xff000000, pax_font_saira_condensed, pax_font_saira_condensed->default_size, 400, 240, text);
-}
-
 void app_main(void) {
+    esp_err_t res;
     bsp_preinit();
-    uint16_t  version = 0xffff;
-    esp_err_t res     = bsp_ch32_version(&version);
+    uint16_t version = 0xffff;
+    res              = bsp_ch32_version(&version);
     if (res) {
         ESP_LOGW(TAG, "Unable to read CH32 version");
     } else if (version != BSP_CH32_VERSION) {
@@ -146,6 +142,7 @@ void app_main(void) {
             .swclk = 23,
         };
         ch32_program(&handle, ch32_firmware_start, ch32_firmware_end - ch32_firmware_start);
+        esp_restart();
     }
     display_version();
     bsp_init();
@@ -164,7 +161,7 @@ void app_main(void) {
     pgui_draw(gfx, (pgui_elem_t *)&gui, NULL);
     bsp_disp_update(dev_id, 0, pax_buf_get_pixels(gfx));
 
-    esp_err_t res = appfsInit(APPFS_PART_TYPE, APPFS_PART_SUBTYPE);
+    res = appfsInit(APPFS_PART_TYPE, APPFS_PART_SUBTYPE);
     if (res) {
         ESP_LOGE("main", "AppFS init failed: %s", esp_err_to_name(res));
     } else {

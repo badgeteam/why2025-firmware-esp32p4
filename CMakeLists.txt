@@ -5,6 +5,11 @@
 cmake_minimum_required(VERSION 3.16)
 
 set(PROJECT_VER "0.0.1")
+
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+if(NOT EXISTS build/badge_export_symbols.cmake)
+    execute_process(COMMAND make -C ${CMAKE_CURRENT_LIST_DIR} build/badge_export_symbols.cmake)
+endif()
 include(build/badge_export_symbols.cmake)
 project(why2025-firmware-esp32p4)
