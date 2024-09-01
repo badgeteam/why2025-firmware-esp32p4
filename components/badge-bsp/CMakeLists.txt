@@ -14,7 +14,7 @@ idf_component_register(
     INCLUDE_DIRS
         pub_include
         include
-    REQUIRES pax_gfx driver esp_lcd
+    REQUIRES pax_gfx driver esp_lcd fatfs
 )
 
 add_subdirectory(badgelib)

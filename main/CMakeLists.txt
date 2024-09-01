@@ -1,7 +1,10 @@
 idf_component_register(
     SRCS
         "fonts/chakrapetchmedium.c"
+        "menus/apps.c"
+        "menus/root.c"
         "app.c"
+        "appfs2.c"
         "main.c"
     INCLUDE_DIRS
         "."

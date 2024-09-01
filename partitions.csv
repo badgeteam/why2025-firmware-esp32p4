@@ -2,7 +2,7 @@
 # 	Name,		Type,	SubType,	Offset,		Size,	Flags
 	otadata,	data,	ota,		0xD000,		8K,		
 	phy_init,	data,	phy,		0xF000,		4K,		
-	ota_0,		0,		ota_0,		0x10000,	512K,	
-	ota_1,		0,		ota_1,		0x90000,	512K,	
-	appfs,		0x43,	3,			0x110000,	1024K,	
-	jmptab,		0xca,   0xfe,       0x210000,   64K,	
+	factory,	app,	factory,	0x10000,	1M,		
+	appfs,		0x43,	3,			0x110000,	1M,		
+	jmptab,		0xca,	0xfe,		0x210000,	64K,	
+	fat,		data,	fat,		0x220000,	4M,		

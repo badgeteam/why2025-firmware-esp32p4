@@ -32,6 +32,21 @@
 #define BSP_SDIO_WIDTH 4
 #define BSP_SDIO_FLAGS 0
 
+#define BSP_SDCARD_CLK   43
+#define BSP_SDCARD_CMD   44
+#define BSP_SDCARD_D0    39
+#define BSP_SDCARD_D1    40
+#define BSP_SDCARD_D2    41
+#define BSP_SDCARD_D3    42
+#define BSP_SDCARD_D4    -1
+#define BSP_SDCARD_D5    -1
+#define BSP_SDCARD_D6    -1
+#define BSP_SDCARD_D7    -1
+#define BSP_SDCARD_CD    -1
+#define BSP_SDCARD_WP    -1
+#define BSP_SDCARD_WIDTH 4
+#define BSP_SDCARD_FLAGS 0
+
 /* ==== Mipi DSI parameters ==== */
 #define BSP_DSI_DPI_CLK_MHZ    30
 #define BSP_DSI_LCD_H_RES      480
