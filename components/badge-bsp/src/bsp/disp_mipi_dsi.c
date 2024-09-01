@@ -5,12 +5,16 @@
 
 #include "hardware/why2025.h"
 
+#include <stdatomic.h>
+
 #include <esp_err.h>
 #include <esp_lcd_mipi_dsi.h>
 #include <esp_lcd_panel_dev.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_ldo_regulator.h>
 #include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 static char const TAG[] = "bsp-dsi";
 
@@ -22,6 +26,7 @@ typedef struct {
     esp_lcd_dsi_bus_handle_t  bus_handle;
     esp_lcd_panel_handle_t    ctrl_handle;
     esp_lcd_panel_handle_t    disp_handle;
+    SemaphoreHandle_t         disp_update_sem;
 } bsp_disp_dsi_t;
 
 
@@ -29,7 +34,7 @@ typedef struct {
 // LDO regulator handle.
 static esp_ldo_channel_handle_t ldo_handle = NULL;
 
-// Power on Mipi DSI PHY.
+// Power on MIPI DSI PHY.
 static esp_err_t dsi_phy_poweron() {
     // Turn on the power for MIPI DSI PHY, so it can go from "No Power" state to "Shutdown" state
     esp_ldo_channel_config_t ldo_config = {
@@ -43,7 +48,7 @@ static esp_err_t dsi_phy_poweron() {
     return res;
 }
 
-// Power off Mipi DSI PHY.
+// Power off MIPI DSI PHY.
 static esp_err_t dsi_phy_poweroff() {
     esp_err_t res = esp_ldo_release_channel(ldo_handle);
     if (res == ESP_OK) {
@@ -52,19 +57,34 @@ static esp_err_t dsi_phy_poweroff() {
     return res;
 }
 
+// MIPI DSI transfer done.
+static bool
+    bsp_disp_dsi_update_done(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
+    bsp_disp_dsi_t *disp = user_ctx;
+    xSemaphoreGive(disp->disp_update_sem);
+    return false;
+}
+
 
 
 // Initialize MIPI DSI driver.
 bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t new_fun) {
+    esp_err_t res = 0;
+
     // Allocate data structures.
     dev->disp_aux[endpoint] = malloc(sizeof(bsp_disp_dsi_t));
     if (!dev->disp_aux[endpoint]) {
         ESP_LOGE(TAG, "Failed to initialize DSI display: %s", "out of memory");
         return false;
     }
-    bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
+    bsp_disp_dsi_t *disp  = dev->disp_aux[endpoint];
+    disp->disp_update_sem = xSemaphoreCreateBinary();
+    if (!disp->disp_update_sem) {
+        goto error;
+    }
+    xSemaphoreGive(disp->disp_update_sem);
 
-    esp_err_t res = dsi_phy_poweron();
+    res = dsi_phy_poweron();
     if (res != ESP_OK) {
         goto error;
     }
@@ -139,6 +159,10 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
     if ((res = esp_lcd_new_panel_dpi(disp->bus_handle, &dpi_config, &disp->disp_handle)) != ESP_OK) {
         goto error4;
     }
+    esp_lcd_dpi_panel_event_callbacks_t callbacks = {
+        .on_color_trans_done = bsp_disp_dsi_update_done,
+    };
+    esp_lcd_dpi_panel_register_event_callbacks(disp->disp_handle, &callbacks, disp);
     if ((res = esp_lcd_panel_init(disp->disp_handle)) != ESP_OK) {
         esp_lcd_panel_del(disp->disp_handle);
         goto error4;
@@ -160,6 +184,7 @@ error2:
     dsi_phy_poweroff();
 error:
     ESP_LOGI(TAG, "error1");
+    vSemaphoreDelete(disp->disp_update_sem);
     free(dev->disp_aux[endpoint]);
     dev->disp_aux[endpoint] = NULL;
     ESP_LOGE(TAG, "Failed to initialize DSI display: %s", esp_err_to_name(res));
@@ -173,6 +198,8 @@ bool bsp_disp_dsi_deinit(bsp_device_t *dev, uint8_t endpoint) {
     esp_lcd_panel_del(disp->disp_handle);
     esp_lcd_panel_del(disp->ctrl_handle);
     esp_lcd_del_dsi_bus(disp->bus_handle);
+    vSemaphoreDelete(disp->disp_update_sem);
+    free(disp);
     dsi_phy_poweroff();
     return true;
 }
@@ -182,6 +209,7 @@ bool bsp_disp_dsi_deinit(bsp_device_t *dev, uint8_t endpoint) {
 // Send new image data to a device's display.
 void bsp_disp_dsi_update(bsp_device_t *dev, uint8_t endpoint, void const *framebuffer) {
     bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
+    xSemaphoreTake(disp->disp_update_sem, portMAX_DELAY);
     esp_lcd_panel_draw_bitmap(
         disp->disp_handle,
         0,

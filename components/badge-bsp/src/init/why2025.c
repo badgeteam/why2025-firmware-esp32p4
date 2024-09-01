@@ -175,10 +175,13 @@ static void bsp_mount_sdcard() {
 // Try to mount internal FAT filesystem.
 static void bsp_mount_fatfs() {
     esp_vfs_fat_mount_config_t mount_cfg = VFS_FAT_MOUNT_DEFAULT_CONFIG();
-    wl_handle_t                wl_handle = WL_INVALID_HANDLE;
-    esp_err_t                  res       = esp_vfs_fat_spiflash_mount_rw_wl("/", NULL, &mount_cfg, &wl_handle);
+    mount_cfg.format_if_mount_failed     = true;
+    wl_handle_t wl_handle                = WL_INVALID_HANDLE;
+    esp_err_t   res                      = esp_vfs_fat_spiflash_mount_rw_wl("/int", NULL, &mount_cfg, &wl_handle);
     if (res) {
         ESP_LOGE(TAG, "FAT mount error %s (%d)", esp_err_to_name(res), res);
+    } else {
+        ESP_LOGI(TAG, "FAT filesystem mounted");
     }
 }
 

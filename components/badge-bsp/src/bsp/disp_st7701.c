@@ -254,7 +254,7 @@ static esp_err_t bsp_st7701_set_gap(esp_lcd_panel_t *panel, int x_gap, int y_gap
 }
 
 static esp_err_t bsp_st7701_disp_on_off(esp_lcd_panel_t *panel, bool on_off) {
-    ESP_LOGI(TAG, "Display %s\n", on_off ? "on" : "off");
+    ESP_LOGI(TAG, "Display %s", on_off ? "on" : "off");
     st7701_panel_t           *st7701  = __containerof(panel, st7701_panel_t, base);
     esp_lcd_panel_io_handle_t io      = st7701->io;
     int                       command = 0;
@@ -269,7 +269,7 @@ static esp_err_t bsp_st7701_disp_on_off(esp_lcd_panel_t *panel, bool on_off) {
 }
 
 static esp_err_t bsp_st7701_sleep(esp_lcd_panel_t *panel, bool sleep) {
-    ESP_LOGI(TAG, "Display %s\n", sleep ? "wakeup" : "sleep");
+    ESP_LOGI(TAG, "Display %s", sleep ? "wakeup" : "sleep");
     st7701_panel_t           *st7701  = __containerof(panel, st7701_panel_t, base);
     esp_lcd_panel_io_handle_t io      = st7701->io;
     int                       command = 0;

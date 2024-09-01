@@ -47,7 +47,7 @@ static size_t       menu_stack_len;
 // Previsous value of `menu_stack_len`; used to clean up.
 static size_t       menu_stack_prev;
 // Need to update active menu.
-static bool         menu_change = false;
+static bool         menu_change = true;
 
 
 
@@ -128,6 +128,8 @@ void app_main(void) {
     bsp_disp_update(1, 0, pax_buf_get_pixels(gfx));
     bsp_disp_backlight(1, 0, 65535);
 
+    bool needs_draw   = true;
+    bool needs_redraw = false;
     while (true) {
         bsp_event_t event;
         if (menu_change) {
@@ -139,12 +141,22 @@ void app_main(void) {
             }
             menu_stack_prev = menu_stack_len;
             gui             = menu_stack_len ? menu_stack[menu_stack_len - 1].root : root_menu;
-            pax_background(gfx, pgui_get_default_theme()->palette[PGUI_VARIANT_DEFAULT].bg_col);
+            needs_draw      = true;
             pgui_calc_layout(pax_buf_get_dims(gfx), gui, NULL);
+        }
+        if (needs_draw) {
+            pax_background(gfx, pgui_get_default_theme()->palette[PGUI_VARIANT_DEFAULT].bg_col);
             pgui_draw(gfx, gui, NULL);
             bsp_disp_update(1, 0, pax_buf_get_pixels(gfx));
+            needs_draw   = false;
+            needs_redraw = false;
+        } else if (needs_redraw) {
+            pgui_redraw(gfx, gui, NULL);
+            bsp_disp_update(1, 0, pax_buf_get_pixels(gfx));
+            needs_redraw = false;
         }
-        if (bsp_event_wait(&event, UINT64_MAX)) {
+        uint64_t timeout = UINT64_MAX;
+        while (bsp_event_wait(&event, timeout)) {
             pgui_event_t p_event = {
                 .type    = event.input.type,
                 .input   = event.input.nav_input,
@@ -154,13 +166,13 @@ void app_main(void) {
             pgui_resp_t resp = pgui_event(pax_buf_get_dims(gfx), gui, NULL, p_event);
             if (resp) {
                 if (resp == PGUI_RESP_CAPTURED_DIRTY) {
-                    pax_background(gfx, pgui_get_default_theme()->palette[PGUI_VARIANT_DEFAULT].bg_col);
+                    needs_draw = true;
                 }
-                pgui_redraw(gfx, gui, NULL);
-                bsp_disp_update(1, 0, pax_buf_get_pixels(gfx));
+                needs_redraw = true;
             } else if (p_event.input == PGUI_INPUT_BACK && p_event.type == PGUI_EVENT_TYPE_PRESS) {
                 menu_pop();
             }
+            timeout = 0;
         }
     }
 }
