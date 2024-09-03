@@ -31,9 +31,6 @@ void menu_apps_open() {
         pgui_set_size2(button, 400, 38);
         pgui_elem_t *name = pgui_new_text(app_list[i].name ?: app_list[i].id);
         pgui_child_append(button, name);
-        pgui_enable_flags(name, PGUI_FLAG_FIX_WIDTH | PGUI_FLAG_FIX_HEIGHT);
-        pgui_set_size2(name, 324, 38);
-        pgui_set_halign(name, PAX_ALIGN_BEGIN);
     }
     menu_push((menu_entry_t){
         .root     = grid,
