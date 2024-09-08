@@ -10,3 +10,6 @@
 [submodule "components/badge-bsp/badgelib"]
 	path = components/badge-bsp/badgelib
 	url = https://badgeteam@github.com/badgeteam/badgelib
+[submodule "main/kbelf"]
+	path = main/kbelf
+	url = https://robotman2412@github.com/robotman2412/KiloElfLoader

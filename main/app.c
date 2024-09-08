@@ -3,9 +3,10 @@
 
 #include "app.h"
 
-#include "appfs2.h"
+#include "appfs_elf.h"
 #include "arrays.h"
 #include "esp_log.h"
+#include "esp_system.h"
 
 static char const TAG[] = "app";
 
@@ -58,11 +59,10 @@ void app_detect() {
         char const *id;
         char const *name;
         appfsEntryInfoExt(fd, &id, &name, NULL, NULL);
-        app_meta_t meta = app_read_metadata(id);
-        bool       is_appfs2;
-        appfs2_detect(fd, &is_appfs2);
-        meta.type     = is_appfs2 ? APP_TYPE_APPFS2 : APP_TYPE_APPFS1;
-        meta.appfs_fd = fd;
+        app_meta_t meta      = app_read_metadata(id);
+        bool       is_appfs2 = appelf_detect(fd) == ESP_OK;
+        meta.type            = is_appfs2 ? APP_TYPE_APPFS_ELF : APP_TYPE_APPFS_ESP;
+        meta.appfs_fd        = fd;
         if (!meta.name) {
             meta.name = strdup(name);
         }
@@ -83,9 +83,10 @@ void app_list_clear() {
 
 // Start an app.
 void app_start(app_meta_t *app) {
-    if (app->type == APP_TYPE_APPFS1 || app->type == APP_TYPE_APPFS2) {
-        appfs2_info_t info;
-        appfs2_info(app->appfs_fd, &info);
-        appfs2_start(app->appfs_fd, &info);
+    if (app->type == APP_TYPE_APPFS_ESP) {
+        appfsBootSelect(app->appfs_fd, NULL);
+        esp_restart();
+    } else if (app->type == APP_TYPE_APPFS_ELF) {
+        appelf_run(app->appfs_fd);
     }
 }

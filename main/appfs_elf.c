@@ -1,23 +1,46 @@
 
 // SPDX-License-Identifier: MIT
 
-#include "appfs2.h"
+#include "appfs_elf.h"
 
-#include <esp_log.h>
-#include <esp_partition.h>
-#include <esp_private/cache_utils.h>
-#include <esp_system.h>
-#include <hal/cache_hal.h>
-#include <hal/cache_ll.h>
-#include <hal/mmu_ll.h>
-#include <soc/soc.h>
+#include "appfs.h"
+#include "kbelf/elfspec.h"
+#include "string.h"
 
-static char const TAG[] = "apploader";
+// #include <esp_log.h>
+// #include <esp_partition.h>
+// #include <esp_private/cache_utils.h>
+// #include <esp_system.h>
+// #include <hal/cache_hal.h>
+// #include <hal/cache_ll.h>
+// #include <hal/mmu_ll.h>
+// #include <soc/soc.h>
 
-__attribute__((section(".ext_ram.bss"))) static char const psram_resvmem[128 * 1024];
+// static char const TAG[] = "appelf";
+
+// __attribute__((section(".ext_ram.bss"))) static char const psram_resvmem[128 * 1024];
 
 
 
+// Returns ESP_OK if it is an ELF app, error code otherwise.
+esp_err_t appelf_detect(appfs_handle_t fd) {
+    char      tmp[sizeof(kbelf_magic)];
+    esp_err_t res = appfsRead(fd, 0, tmp, sizeof(tmp));
+    if (res)
+        return res;
+    if (memcmp(tmp, kbelf_magic, sizeof(tmp)))
+        return ESP_ERR_NOT_SUPPORTED;
+    return ESP_OK;
+}
+
+// Try to load and run an ELF from AppFS.
+esp_err_t appelf_run(appfs_handle_t fd) {
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+
+
+/*
 // Get info about an ESP image in an AppFS file.
 esp_err_t appfs2_info(appfs_handle_t fd, appfs2_info_t *info) {
     // Read the header.
@@ -145,3 +168,4 @@ IRAM_ATTR esp_err_t appfs2_start(appfs_handle_t fd, appfs2_info_t *info) {
 
     return ESP_OK;
 }
+*/

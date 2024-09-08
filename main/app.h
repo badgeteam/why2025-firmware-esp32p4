@@ -9,10 +9,10 @@
 
 // Application types.
 typedef enum {
-    // AppFS1 firmware.
-    APP_TYPE_APPFS1,
-    // AppFS2 app.
-    APP_TYPE_APPFS2,
+    // AppFS ESP-IDF firmware.
+    APP_TYPE_APPFS_ESP,
+    // AppFS ELF app.
+    APP_TYPE_APPFS_ELF,
     // Python app.
     // APP_TYPE_PYTHON,
     // BadgerOS app.

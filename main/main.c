@@ -3,7 +3,7 @@
 
 #include "main.h"
 
-#include "appfs2.h"
+#include "appfs.h"
 #include "arrays.h"
 #include "bsp.h"
 #include "bsp/why2025_coproc.h"
@@ -162,6 +162,7 @@ void app_main(void) {
 
     // Initialize AppFS so the app launcher can use it.
     appfsInit(APPFS_PART_TYPE, APPFS_PART_SUBTYPE);
+    fopen("/appfs/app_ok", "rb");
 
     // Compose top-level GUI.
     gui = pgui_new_grid2(1, 3);
