@@ -7,6 +7,7 @@
 
 #include <driver/i2c.h>
 #include <driver/sdmmc_host.h>
+#include <driver/uart.h>
 #include <esp_log.h>
 #include <esp_vfs_fat.h>
 #include <sdmmc_cmd.h>
@@ -129,6 +130,8 @@ sdmmc_slot_config_t const why2025_sdcard_config = {
 
 // Platform-specific BSP init code.
 void bsp_platform_preinit() {
+    esp_log_level_set("gpio", ESP_LOG_WARN);
+
     // Check I²C pin levels.
     gpio_set_direction(BSP_I2CINT_SCL_PIN, GPIO_MODE_INPUT);
     gpio_set_direction(BSP_I2CINT_SDA_PIN, GPIO_MODE_INPUT);
@@ -185,8 +188,25 @@ static void bsp_mount_fatfs() {
     }
 }
 
+void et2_setif_uart(int);
+int  et2_sync();
+void et2_test();
 // Platform-specific BSP init code.
 void bsp_platform_init() {
+    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_control(false, false));
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    // ESP32-C6 programming test.
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, 256, 256, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0, BSP_UART_TX_C6, BSP_UART_RX_C6, -1, -1));
+    ESP_ERROR_CHECK(uart_set_baudrate(UART_NUM_0, 115200));
+    esp_log_level_set("et2", ESP_LOG_DEBUG);
+    et2_setif_uart(UART_NUM_0);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_control(true, false));
+    ESP_ERROR_CHECK(et2_sync());
+    et2_test();
+
+    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_control(false, true));
     ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_control(true, true));
 
     // Try to mount SDcard.
