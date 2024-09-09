@@ -17,6 +17,11 @@
 // Expected CH32 version.
 #define BSP_CH32_VERSION 0x08
 
+// UART TX going to ESP32-C6.
+#define BSP_UART_TX_C6 38
+// UART RX coming from ESP32-C6.
+#define BSP_UART_RX_C6 37
+
 #define BSP_SDIO_CLK   17
 #define BSP_SDIO_CMD   16
 #define BSP_SDIO_D0    18
