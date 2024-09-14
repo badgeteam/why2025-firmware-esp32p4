@@ -3,6 +3,9 @@
 
 #include "esptoolsquared.h"
 
+#include "chips.h"
+
+#include <esp_app_format.h>
 #include <esp_log.h>
 #include <string.h>
 
@@ -10,11 +13,13 @@ static char const TAG[] = "et2";
 
 #define ET2_TIMEOUT pdMS_TO_TICKS(1000)
 
-#define RETURN_ON_ERR(x)                                                                                               \
+#define RETURN_ON_ERR(x, ...)                                                                                          \
     do {                                                                                                               \
-        esp_err_t tmp = (x);                                                                                           \
-        if (tmp)                                                                                                       \
-            return tmp;                                                                                                \
+        esp_err_t err = (x);                                                                                           \
+        if (err) {                                                                                                     \
+            __VA_ARGS__;                                                                                               \
+            return err;                                                                                                \
+        }                                                                                                              \
     } while (0)
 
 #define LEN_CHECK_MIN(resp, resp_len, exp_len, ...)                                                                    \
@@ -71,7 +76,11 @@ typedef struct {
 } et2_sec_info_t;
 
 // Current UART.
-uart_port_t cur_uart;
+static uart_port_t       cur_uart;
+// Current chip ID value.
+static uint32_t          chip_id;
+// Current chip attributes.
+static et2_chip_t const *chip_attr;
 
 
 
@@ -79,6 +88,7 @@ void et2_test() {
     uint32_t chip_id;
     ESP_ERROR_CHECK(et2_detect(&chip_id));
     ESP_LOGI("et2", "ESP32 detected; chip id 0x%08" PRIx32, chip_id);
+    ESP_ERROR_CHECK(et2_run_stub());
 }
 
 // Set interface used to a UART.
@@ -143,15 +153,90 @@ esp_err_t et2_sync() {
     return ESP_ERR_TIMEOUT;
 }
 
+// Set attributes according to chip ID.
+void check_chip_id() {
+    switch (chip_id & 0xffff) {
+#ifdef CONFIG_ET2_SUPPORT_ESP32C3
+        case ESP_CHIP_ID_ESP32C3: chip_attr = &et2_chip_esp32c3; break;
+#else
+        case ESP_CHIP_ID_ESP32C3: ESP_LOGW(TAG, "ESP32-C3 not supported!"); break;
+#endif
+#ifdef CONFIG_ET2_SUPPORT_ESP32C2
+        case ESP_CHIP_ID_ESP32C2: chip_attr = &et2_chip_esp32c2; break;
+#else
+        case ESP_CHIP_ID_ESP32C2: ESP_LOGW(TAG, "ESP32-C2 not supported!"); break;
+#endif
+#ifdef CONFIG_ET2_SUPPORT_ESP32C6
+        case ESP_CHIP_ID_ESP32C6: chip_attr = &et2_chip_esp32c6; break;
+#else
+        case ESP_CHIP_ID_ESP32C6: ESP_LOGW(TAG, "ESP32-C6 not supported!"); break;
+#endif
+#ifdef CONFIG_ET2_SUPPORT_ESP32P4
+        case ESP_CHIP_ID_ESP32P4: chip_attr = &et2_chip_esp32p4; break;
+#else
+        case ESP_CHIP_ID_ESP32P4: ESP_LOGW(TAG, "ESP32-P4 not supported!"); break;
+#endif
+#ifdef CONFIG_ET2_SUPPORT_ESP32S2
+        case ESP_CHIP_ID_ESP32S2: chip_attr = &et2_chip_esp32s2; break;
+#else
+        case ESP_CHIP_ID_ESP32S2: ESP_LOGW(TAG, "ESP32-S2 not supported!"); break;
+#endif
+#ifdef CONFIG_ET2_SUPPORT_ESP32S3
+        case ESP_CHIP_ID_ESP32S3: chip_attr = &et2_chip_esp32s3; break;
+#else
+        case ESP_CHIP_ID_ESP32S3: ESP_LOGW(TAG, "ESP32-S3 not supported!"); break;
+#endif
+        default: ESP_LOGW(TAG, "Unknown chip ID 0x%04" PRIX32, chip_id & 0xffff); break;
+    }
+}
+
 // Detect an ESP32 and, if present, read its chip ID.
 // If a pointer is NULL, the property is not read.
-esp_err_t et2_detect(uint32_t *chip_id) {
+esp_err_t et2_detect(uint32_t *chip_id_out) {
     void  *resp;
     size_t resp_len;
     RETURN_ON_ERR(et2_send_cmd(ET2_CMD_SEC_INFO, NULL, 0, &resp, &resp_len, NULL));
     LEN_CHECK_MIN(resp, resp_len, sizeof(et2_sec_info_t));
-    *chip_id = ((et2_sec_info_t *)resp)->chip_id;
+    chip_id = ((et2_sec_info_t *)resp)->chip_id;
+    check_chip_id();
+    *chip_id_out = chip_id;
     free(resp);
+    return ESP_OK;
+}
+
+// Upload and start a flasher stub.
+esp_err_t et2_run_stub() {
+    uint32_t chip_id;
+    RETURN_ON_ERR(et2_detect(&chip_id));
+    if (!chip_attr) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    // Upload the stub.
+    ESP_LOGI(TAG, "Uploading flasher stub...");
+    RETURN_ON_ERR(
+        et2_mem_write(chip_attr->stub->text_start, chip_attr->stub->text, chip_attr->stub->text_len),
+        ESP_LOGE(TAG, "Failed to upload stub")
+    );
+    RETURN_ON_ERR(
+        et2_mem_write(chip_attr->stub->data_start, chip_attr->stub->data, chip_attr->stub->data_len),
+        ESP_LOGE(TAG, "Failed to upload stub")
+    );
+
+    // Start the stub.
+    ESP_LOGI(TAG, "Starting flasher stub...");
+    RETURN_ON_ERR(et2_cmd_mem_end(chip_attr->stub->entry), ESP_LOGE(TAG, "Failed to start stub"));
+
+    // Verify that the stub has successfully started.
+    void  *resp;
+    size_t resp_len;
+    RETURN_ON_ERR(et2_slip_recv(&resp, &resp_len), ESP_LOGE(TAG, "Stub did not respond"));
+    if (resp_len != 4 || memcmp(resp, "OHAI", 4)) {
+        ESP_LOGE(TAG, "Unexpected response from stub");
+        free(resp);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
     return ESP_OK;
 }
 
@@ -309,7 +394,14 @@ static esp_err_t et2_slip_recv(void **resp, size_t *resp_len) {
 // Send a command.
 static esp_err_t
     et2_send_cmd(et2_cmd_t cmd, void const *param, size_t param_len, void **resp, size_t *resp_len, uint32_t *val) {
-    if (!resp || !resp_len) {
+    void  *resp_dummy;
+    size_t resp_len_dummy;
+    bool   ignore_resp = false;
+    if (!resp && !resp_len) {
+        ignore_resp = true;
+        resp        = &resp_dummy;
+        resp_len    = &resp_len_dummy;
+    } else if (!resp || !resp_len) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -338,7 +430,9 @@ static esp_err_t
     if (val) {
         *val = ((et2_hdr_t *)*resp)->len;
     }
-    if (*resp_len == sizeof(et2_hdr_t)) {
+    if (ignore_resp) {
+        free(*resp);
+    } else if (*resp_len == sizeof(et2_hdr_t)) {
         free(*resp);
         *resp     = NULL;
         *resp_len = 0;
@@ -349,4 +443,76 @@ static esp_err_t
 
     ESP_LOGD(TAG, "Recv OK");
     return ESP_OK;
+}
+
+
+
+// Write to a range of memory.
+esp_err_t et2_mem_write(uint32_t addr, void const *_wdata, uint32_t len) {
+    uint8_t const *wdata = _wdata;
+
+    // Compute number of blocks.
+    uint32_t blocks = (len + chip_attr->ram_block - 1) / chip_attr->ram_block;
+
+    // Initiate write sequence.
+    RETURN_ON_ERR(et2_cmd_mem_begin(len, blocks, chip_attr->ram_block, addr));
+
+    // Send write data in blocks.
+    for (uint32_t i = 0; i < blocks; i++) {
+        uint32_t chunk_size = len - i * chip_attr->ram_block;
+        if (chunk_size > chip_attr->ram_block) {
+            chunk_size = chip_attr->ram_block;
+        }
+        RETURN_ON_ERR(et2_cmd_mem_data(wdata + i * chip_attr->ram_block, chunk_size, i));
+    }
+
+    return ESP_OK;
+}
+
+// Write to a range of FLASH.
+esp_err_t et2_flash_write(uint32_t flash_off, void const *wdata, uint32_t len) {
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+
+
+// Send MEM_BEGIN command to initiate memory writes.
+esp_err_t et2_cmd_mem_begin(uint32_t size, uint32_t blocks, uint32_t blocksize, uint32_t offset) {
+    uint32_t payload[] = {size, blocks, blocksize, offset};
+    return et2_send_cmd(ET2_CMD_MEM_BEGIN, payload, sizeof(payload), NULL, NULL, NULL);
+}
+
+// Send MEM_DATA command to send memory write payload.
+esp_err_t et2_cmd_mem_data(void const *data, uint32_t data_len, uint32_t seq) {
+    uint32_t header[] = {data_len, seq, 0, 0};
+    uint8_t *payload  = malloc(sizeof(header) + data_len);
+    if (!payload) {
+        return ESP_ERR_NO_MEM;
+    }
+    memcpy(payload, header, sizeof(header));
+    memcpy(payload + sizeof(header), data, data_len);
+    esp_err_t res = et2_send_cmd(ET2_CMD_MEM_DATA, payload, sizeof(header) + data_len, NULL, NULL, NULL);
+    free(payload);
+    return res;
+}
+
+// Send MEM_END command to restart into application.
+esp_err_t et2_cmd_mem_end(uint32_t entrypoint) {
+    uint32_t payload[] = {!entrypoint, entrypoint};
+    return et2_send_cmd(ET2_CMD_MEM_END, payload, sizeof(payload), NULL, NULL, NULL);
+}
+
+// Send FLASH_BEGIN command to initiate memory writes.
+esp_err_t et2_cmd_flash_begin(uint32_t size, uint32_t offset) {
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+// Send FLASH_BLOCK command to send memory write payload.
+esp_err_t et2_cmd_flash_block(void const *data, uint32_t data_len, uint32_t seq) {
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+// Send FLASH_FINISH command to restart into application.
+esp_err_t et2_cmd_flash_finish(bool reboot) {
+    return ESP_ERR_NOT_SUPPORTED;
 }
