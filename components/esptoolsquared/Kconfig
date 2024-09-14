@@ -1,0 +1,20 @@
+menu "esptoolsquared"
+    config ET2_SUPPORT_ESP32C2
+        bool "Enable support stub for ESP32-C2"
+        default n
+    config ET2_SUPPORT_ESP32C3
+        bool "Enable support stub for ESP32-C3"
+        default n
+    config ET2_SUPPORT_ESP32C6
+        bool "Enable support stub for ESP32-C6"
+        default y
+    config ET2_SUPPORT_ESP32P4
+        bool "Enable support stub for ESP32-P4"
+        default n
+    config ET2_SUPPORT_ESP32S2
+        bool "Enable support stub for ESP32-S2"
+        default n
+    config ET2_SUPPORT_ESP32S3
+        bool "Enable support stub for ESP32-S3"
+        default n
+endmenu
