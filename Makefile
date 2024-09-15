@@ -57,32 +57,31 @@ fullclean:
 
 # Building
 
-build/badge_export_symbols.cmake: tools/exported.txt tools/symbol_export.py
+main/kbelf_lib.c: tools/exported.txt tools/symbol_export.py
 	mkdir -p build
-	./tools/symbol_export.py --address 0x43F80000 \
-	    --symbols tools/exported.txt \
-		--cmake build/badge_export_symbols.cmake \
-		--ldscript build/badge_jump_table.ld
+	./tools/symbol_export.py \
+		--symbols tools/exported.txt \
+		--kbelf main/kbelf_lib.c \
+		--kbelf-path libbadge.so
 
-badgesdk: build/badge_export_symbols.cmake $(PAX_HDRS) $(shell find -name '*.h' -or -name '*.hpp')
-	rm -rf badgesdk/include
-	mkdir -p badgesdk/ld
-	mkdir -p badgesdk/include/gui
-	cp components/badge-bsp/pub_include/* badgesdk/include/
-	cp components/pax-gfx/core/include/* badgesdk/include/
-	cp components/pax-gfx/gui/include/* badgesdk/include/
-	cp build/badge_jump_table.ld badgesdk/ld/			
-	cp tools/badgesdk.ld badgesdk/ld/linker.ld
+badgesdk: $(shell find -name '*.h' -or -name '*.hpp')
+	rm -rf badgesdk
+	cp -r sdk-files badgesdk
+	mkdir -p badgesdk/include
+	cp -r components/badge-bsp/pub_include/* badgesdk/include/
+	cp -r components/badge-bsp/badgelib/include/* badgesdk/include/
+	cp -r components/pax_gfx/core/include/* badgesdk/include/
+	cp -r components/pax_gfx/gui/include/* badgesdk/include/
+	source "$(IDF_PATH)/export.sh" && \
+	./tools/symbol_export.py \
+		--symbols tools/exported.txt \
+		--assembler riscv32-esp-elf-gcc \
+		--lib badgesdk/ld/libbadge.so \
+		-F=-mabi=ilp32f -F=-march=rv32imafc
 
 .PHONY: build
-build:
-	source "$(IDF_PATH)/export.sh" >/dev/null && \
-	idf.py build && \
-	echo Building jump tables && \
-	./tools/symbol_export.py --address 0x43F80000 \
-		--symbols tools/exported.txt --binary build/why2025-firmware-esp32p4.elf \
-		--table build/badge_jump_table.elf --assembler riscv32-esp-elf-gcc && \
-	riscv32-esp-elf-objcopy -O binary build/badge_jump_table.elf build/badge_jump_table.bin
+build: main/kbelf_lib.c
+	source "$(IDF_PATH)/export.sh" >/dev/null && idf.py build
 
 .PHONY: image
 image:
@@ -94,11 +93,7 @@ image:
 .PHONY: flash
 flash: build
 	source "$(IDF_PATH)/export.sh" && \
-	idf.py flash -p $(PORT) && \
-	esptool.py \
-		-b 921600 --port $(PORT) \
-		write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB \
-		0x210000 build/badge_jump_table.bin
+	idf.py flash -p $(PORT)
 
 .PHONY: appfs
 appfs:

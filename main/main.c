@@ -133,7 +133,7 @@ void app_main(void) {
 
     // Initialize the hardware.
     bsp_init();
-    gfx = pax_pax_buf_from_ep(1, 0);
+    gfx = bsp_pax_buf_from_ep(1, 0);
     if (!gfx) {
         ESP_LOGE(TAG, "Failed to create framebuffer");
         esp_restart();

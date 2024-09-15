@@ -13,6 +13,8 @@ typedef enum {
     APP_TYPE_APPFS_ESP,
     // AppFS ELF app.
     APP_TYPE_APPFS_ELF,
+    // RAM-loaded ELF app.
+    APP_TYPE_RAM_ELF,
     // Python app.
     // APP_TYPE_PYTHON,
     // BadgerOS app.

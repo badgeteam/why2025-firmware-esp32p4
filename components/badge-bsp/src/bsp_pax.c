@@ -51,7 +51,7 @@ static void pixfmt_apply_palette(pax_buf_t *buf, bsp_pixfmt_t fmt) {
 
 
 // Create an appropriate PAX buffer given display endpoint.
-pax_buf_t *pax_pax_buf_from_ep(uint32_t dev_id, uint8_t endpoint) {
+pax_buf_t *bsp_pax_buf_from_ep(uint32_t dev_id, uint8_t endpoint) {
     rc_t dt = bsp_dev_get_devtree(dev_id);
     if (!dt) {
         return NULL;

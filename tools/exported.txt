@@ -4,9 +4,7 @@
 # Be aware that C++ symbols need to be mangled before adding to this file.
 
 
-# TODO: <stdio.h> needs a wrapper because of stdin, stdout and stderr
-# TODO: Need symbol names for implicitly referenced functions
-
+# ---- BSP ---- #
 
 # "bsp_color.h"
 bsp_grey16_to_col
@@ -23,15 +21,16 @@ bsp_raw_button_pressed
 bsp_raw_button_released
 bsp_raw_button_pressed_from_isr
 bsp_raw_button_released_from_isr
-
-# "bsp_input.h"
-# No functions defined in this file
+bsp_dev_get_devtree
 
 # "bsp_keymap.h"
 bsp_keymap_why2025
 
+# "bsp_pax.h"
+bsp_pax_buf_from_ep
+bsp_pax_buf_from_tree
+
 # "bsp.h"
-bsp_init
 bsp_event_queue
 bsp_event_queue_from_isr
 bsp_event_wait
@@ -53,6 +52,54 @@ bsp_disp_update
 bsp_disp_update_part
 bsp_disp_backlight
 
+
+# ---- Badgelib ---- #
+
+# "arrays.h"
+array_sort
+array_binsearch
+
+# "badge_err.h"
+badge_eloc_name
+badge_ecause_name
+badge_eloc_get_name
+badge_ecause_get_name
+
+# "badge_strings.h"
+cstr_index
+cstr_last_index
+cstr_index_from
+cstr_last_index_upto
+cstr_equals
+cstr_prefix_equals
+cstr_equals_case
+cstr_prefix_equals_case
+cstr_concat
+cstr_concat_packed
+cstr_copy
+cstr_copy_packed
+mem_index
+mem_last_index
+mem_equals
+mem_swap
+
+# "list.h"
+dlist_concat
+dlist_append
+dlist_prepend
+dlist_pop_front
+dlist_pop_back
+dlist_contains
+dlist_remove
+
+# "refcount.h"
+rc_new
+rc_new_strong
+rc_share
+rc_delete
+
+
+# ---- C standard library ---- #
 
 # <string.h>
 memchr
@@ -297,3 +344,177 @@ funopen
 _funopen_r
 fopencookie
 _fopencookie_r
+
+
+# ---- PAX graphics core ---- #
+
+# "helpers/pax_precalculated.h"
+pax_precalc_circle_8
+pax_precalc_uv_circle_8
+pax_precalc_circle_16
+pax_precalc_uv_circle_16
+pax_precalc_circle_24
+pax_precalc_uv_circle_24
+pax_precalc_circle_32
+pax_precalc_uv_circle_32
+
+# "pax_fonts.h"
+pax_font_sky_raw
+pax_font_sky_mono_raw
+pax_font_marker_raw
+pax_font_saira_condensed_raw
+pax_font_saira_regular_raw
+
+# "pax_gfx.h"
+pax_get_err
+pax_desc_err
+pax_join
+pax_enable_multicore
+pax_disable_multicore
+pax_buf_type_info
+pax_buf_init
+pax_buf_set_palette
+pax_buf_set_palette_rom
+pax_buf_get_palette
+pax_buf_reversed
+pax_buf_destroy
+pax_buf_get_width
+pax_buf_get_height
+pax_buf_get_dims
+pax_buf_get_width_raw
+pax_buf_get_height_raw
+pax_buf_get_dims_raw
+pax_buf_get_type
+pax_buf_get_pixels
+pax_buf_get_pixels_rw
+pax_buf_get_size
+pax_buf_set_orientation
+pax_buf_get_orientation
+pax_buf_scroll
+pax_clip
+pax_get_clip
+pax_noclip
+pax_is_dirty
+pax_get_dirty
+pax_mark_clean
+pax_mark_dirty0
+pax_mark_dirty1
+pax_mark_dirty2
+pax_col_hsv
+pax_col_ahsv
+pax_col_hsv_alt
+pax_col_ahsv_alt
+pax_undo_ahsv
+pax_undo_hsv
+pax_undo_ahsv_alt
+pax_undo_hsv_alt
+pax_col_lerp
+pax_col_merge
+pax_col_tint
+pax_apply_2d
+pax_push_2d
+pax_pop_2d
+pax_reset_2d
+pax_merge_pixel
+pax_set_pixel
+pax_get_pixel
+pax_set_pixel_raw
+pax_get_pixel_raw
+pax_shade_rect
+pax_shade_line
+pax_shade_tri
+pax_shade_arc
+pax_shade_circle
+pax_draw_image
+pax_draw_image_sized
+pax_draw_image_op
+pax_draw_image_sized_op
+pax_draw_rect
+pax_draw_line
+pax_draw_tri
+pax_draw_arc
+pax_draw_circle
+pax_background
+pax_simple_rect
+pax_simple_line
+pax_simple_tri
+pax_simple_arc
+pax_simple_circle
+
+# "pax_matrix.h"
+matrix_2d_rotate
+matrix_2d_multiply
+matrix_2d_transform
+matrix_2d_transform_alt
+pax_recti_abs
+pax_rectf_abs
+pax_recti_intersect
+pax_rectf_intersect
+vec1_unify
+
+# "pax_orientation.h"
+pax_orient_det_vec2f
+pax_unorient_det_vec2f
+pax_orient_det_rectf
+pax_unorient_det_rectf
+pax_orient_det_vec2i
+pax_unorient_det_vec2i
+pax_orient_det_recti
+pax_unorient_det_recti
+
+# "pax_shaders.h"
+pax_shader_font_bmp_hi_pal
+pax_shader_font_bmp_hi
+pax_shader_font_bmp_hi_aa
+pax_shader_font_bmp_pal
+pax_shader_font_bmp
+pax_shader_font_bmp_aa
+pax_shader_texture
+pax_shader_texture_aa
+
+# "pax_shapes.h"
+pax_vectorise_bezier_part
+pax_vectorise_bezier
+pax_draw_bezier_part
+pax_draw_bezier
+pax_vectorise_arc
+pax_vectorise_circle
+pax_draw_round_rect
+pax_draw_round_rect4
+pax_draw_hollow_circle
+pax_draw_hollow_arc
+pax_draw_round_hollow_arc
+pax_outline_round_rect
+pax_outline_round_rect4
+pax_outline_hollow_circle
+pax_outline_hollow_arc
+pax_outline_round_hollow_arc
+pax_outline_rect
+pax_outline_tri
+pax_outline_arc
+pax_outline_circle
+pax_shade_outline_rect
+pax_shade_outline_tri
+pax_shade_outline_arc
+pax_shade_outline_circle
+pax_outline_shape_part
+pax_outline_shape
+pax_outline_shape_part_cl
+pax_outline_shape_cl
+pax_transform_shape
+pax_round_shape_uniform
+pax_round_shape
+pax_triang_complete
+pax_triang_concave
+pax_draw_shape
+pax_draw_shape_triang
+
+# "pax_text.h"
+pax_utf8_getch_l
+pax_utf8_strlen_l
+pax_utf8_seeknext_l
+pax_utf8_seekprev_l
+pax_load_font
+pax_store_font
+pax_draw_text_adv
+pax_text_size_adv

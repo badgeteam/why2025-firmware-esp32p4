@@ -1,6 +1,6 @@
 build/
 tags
-main/build
+main/kbelf_lib.c
 sdkconfig.old
 *.bak
 *.old

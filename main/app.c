@@ -3,7 +3,7 @@
 
 #include "app.h"
 
-#include "appfs_elf.h"
+#include "appelf.h"
 #include "arrays.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -60,7 +60,7 @@ void app_detect() {
         char const *name;
         appfsEntryInfoExt(fd, &id, &name, NULL, NULL);
         app_meta_t meta      = app_read_metadata(id);
-        bool       is_appfs2 = appelf_detect(fd) == ESP_OK;
+        bool       is_appfs2 = appelf_appfs_detect(fd) == ESP_OK;
         meta.type            = is_appfs2 ? APP_TYPE_APPFS_ELF : APP_TYPE_APPFS_ESP;
         meta.appfs_fd        = fd;
         if (!meta.name) {
@@ -87,6 +87,8 @@ void app_start(app_meta_t *app) {
         appfsBootSelect(app->appfs_fd, NULL);
         esp_restart();
     } else if (app->type == APP_TYPE_APPFS_ELF) {
-        appelf_run(app->appfs_fd);
+        appelf_appfs_run(app->appfs_fd);
+    } else if (app->type == APP_TYPE_RAM_ELF) {
+        appelf_vfs_run(app->main_path);
     }
 }

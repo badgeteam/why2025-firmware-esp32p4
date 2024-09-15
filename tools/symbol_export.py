@@ -23,6 +23,70 @@ def load_symbols(path: str) -> list[tuple[str,str]]:
             out.append((line, line))
     return out
 
+def gen_kbelf_lib(symbols: list[tuple[str,str]], path: str, id: str, kbelf_path: str):
+    fd = open(path, "w")
+    fd.write("// WARNING: This is a generated file, do not edit it!\n")
+    fd.write("// clang-format off\n")
+    fd.write("\n")
+    fd.write("#include <kbelf.h>\n")
+    fd.write("\n")
+    for sym in symbols:
+        fd.write(f"extern char const symbol_{sym[0]}[] asm(\"{sym[0]}\");\n")
+    fd.write("\n")
+    fd.write("static kbelf_builtin_sym const symbols[] = {\n")
+    for sym in symbols:
+        fd.write(f"    {{ .name = \"{sym[1]}\", .vaddr = (size_t) symbol_{sym[0]} }},\n")
+    fd.write("};\n")
+    fd.write("\n")
+    fd.write(f"kbelf_builtin_lib const {id} = {{\n")
+    fd.write(f"    .path        = \"{kbelf_path}\",\n")
+    fd.write(f"    .symbols_len = {len(symbols)},\n")
+    fd.write(f"    .symbols     = symbols,\n")
+    fd.write("};\n")
+    fd.close()
+
+def asm_lib(symbols: list[tuple[str,str]], out_path: str, assembler: str, asm_flag: list[str]):
+    global ldscript
+    
+    ldscript = TmpFile("w+", suffix=".ld")
+    ldscript.write(
+    """
+    PHDRS {
+        code PT_LOAD;
+    }
+
+    SECTIONS {
+        .text : {
+            KEEP(*(.text));
+        } :code
+    }
+    """
+    )
+    ldscript.flush()
+    
+    with TmpFile("w+", suffix=".S") as asm:
+        asm.write('.text\n')
+        asm.write('.option norelax\n')
+        asm.write('.option norvc\n')
+        for i in range(len(symbols)):
+            symbol = symbols[i]
+            asm.write(f'.global {symbol[0]}\n')
+            asm.write(f'.type {symbol[0]}, %function\n')
+            asm.write(f'{symbol[0]}: // {symbol[1]}\n')
+            asm.write(f'nop\n')
+        asm.flush()
+        subprocess.run([
+            assembler,
+            *asm_flag,
+            '-T' + ldscript.name,
+            '-nostartfiles', '-nodefaultlibs',
+            '-Wl,--build-id=none',
+            '-Wl,--no-gc-sections',
+            '-shared',
+            asm.name,
+            '-o', out_path
+        ])
+
 def gen_cmake(symbols: list[tuple[str,str]], path: str):
     fd = open(path, "w")
     fd.write("# WARNING: This is a generated file, do not edit it!\n")
@@ -46,7 +110,7 @@ def get_sym_addr(symtab: SymbolTableSection, symbol_name: str) -> int:
             print(f"st_bind: {symbol.entry.st_info.bind}, st_shndx: {symbol.entry.st_shndx}")
     raise LookupError(f"Symbol `{symbol_name}` not found")
 
-def asm_table(symbols: list[tuple[str,str]], elf_path: str, out_path: str, assembler: str, address: int):
+def asm_table(symbols: list[tuple[str,str]], elf_path: str, out_path: str, assembler: str, asm_flag: list[str], address: int):
     global ldscript
         
     ldscript = TmpFile("w+", suffix=".ld")
@@ -91,6 +155,7 @@ def asm_table(symbols: list[tuple[str,str]], elf_path: str, out_path: str, assem
             asm.flush()
             subprocess.run([
                 assembler,
+                *asm_flag,
                 '-T' + ldscript.name,
                 '-nostartfiles', '-nodefaultlibs',
                 '-Wl,--build-id=none',
@@ -109,22 +174,31 @@ def gen_ldscript(symbols: list[tuple[str,str]], path: str, address: int):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--symbols",   action="store")
-    parser.add_argument("--binary",    action="store")
-    parser.add_argument("--cmake",     action="store")
-    parser.add_argument("--table",     action="store")
-    parser.add_argument("--ldscript",  action="store")
-    parser.add_argument("--assembler", action="store")
-    parser.add_argument("--address",   action="store")
+    parser.add_argument("--symbols",    action="store", required=True)
+    parser.add_argument("--binary",     action="store")
+    parser.add_argument("--cmake",      action="store")
+    parser.add_argument("--table",      action="store")
+    parser.add_argument("--ldscript",   action="store")
+    parser.add_argument("--assembler",  action="store")
+    parser.add_argument("--address",    action="store")
+    parser.add_argument("--kbelf",      action="store")
+    parser.add_argument("--kbelf-id",   action="store", default="exported_syms")
+    parser.add_argument("--kbelf-path", action="store", default=None)
+    parser.add_argument("--lib",        action="store")
+    parser.add_argument("--asm-flag", "-F", action="append")
     args = parser.parse_args()
     symbols = load_symbols(args.symbols)
-    if (args.cmake):
+    if args.kbelf:
+        gen_kbelf_lib(symbols, args.kbelf, args.kbelf_id, args.kbelf_path or f"lib{args.kbelf_id}.so")
+    if args.lib:
+        asm_lib(symbols, args.lib, args.assembler, args.asm_flag)
+    if args.cmake:
         gen_cmake(symbols, args.cmake)
-    if (args.ldscript):
-        assert(args.address)
+    if args.ldscript:
+        assert len(args.address)
         gen_ldscript(symbols, args.ldscript, int(args.address, 16))
-    if (args.table):
-        assert(args.assembler)
-        assert(args.binary)
-        assert(args.address)
-        asm_table(symbols, args.binary, args.table, args.assembler, int(args.address, 16))
+    if args.table:
+        assert len(args.assembler)
+        assert len(args.binary)
+        assert len(args.address)
+        asm_table(symbols, args.binary, args.table, args.assembler, args.asm_flag, int(args.address, 16))

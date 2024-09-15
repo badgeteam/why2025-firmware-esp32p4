@@ -4,14 +4,21 @@ idf_component_register(
         "menus/apps.c"
         "menus/root.c"
         "app.c"
-        "appfs_elf.c"
+        "appelf.c"
         "main.c"
         "kbelfx.c"
+        "kbelf_lib.c"
+        "kbelf/src/port/riscv.c"
+        "kbelf/src/kbelf_dyn.c"
+        "kbelf/src/kbelf_file.c"
+        "kbelf/src/kbelf_inst.c"
+        "kbelf/src/kbelf_reloc.c"
+        "kbelf/src/kbelf.c"
     INCLUDE_DIRS
         "."
+        "kbelf/include"
     EMBED_FILES
         "ch32_firmware.bin"
 )
 
-add_subdirectory(kbelf)
-target_link_libraries(${COMPONENT_LIB} PRIVATE kbelf)
+# target_compile_definitions(${COMPONENT_LIB} PRIVATE -DKBELF_DEBUG)
