@@ -83,6 +83,7 @@ typedef enum {
 // Display endpoint types.
 typedef enum {
     BSP_EP_DISP_ST7701,
+    BSP_EP_DISP_EK79007,
 } bsp_ep_disp_type_t;
 
 // Audio endpoint types.
@@ -224,22 +225,22 @@ struct bsp_display_devtree {
     bsp_orient_t         orientation;
 
     // Horizontal front porch width.
-    uint8_t  h_fp;
+    uint16_t h_fp;
     // Display width.
     uint16_t width;
     // Horizontal back porch width.
-    uint8_t  h_bp;
+    uint16_t h_bp;
     // Horizontal sync width.
-    uint8_t  h_sync;
+    uint16_t h_sync;
 
     // Horizontal front porch height.
-    uint8_t  v_fp;
+    uint16_t v_fp;
     // Display height.
     uint16_t height;
     // Horizontal back porch height.
-    uint8_t  v_bp;
+    uint16_t v_bp;
     // Horizontal sync height.
-    uint8_t  v_sync;
+    uint16_t v_sync;
 };
 
 // Audio device tree data.

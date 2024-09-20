@@ -14,9 +14,11 @@
 
 // MIPI DSI display-specific init functions.
 typedef esp_err_t (*bsp_disp_dsi_new_t)(
-    esp_lcd_panel_io_handle_t const   io,
-    esp_lcd_panel_dev_config_t const *panel_dev_config,
-    esp_lcd_panel_handle_t           *ret_panel
+    esp_lcd_panel_io_handle_t         io,
+    esp_lcd_panel_dev_config_t       *panel_dev_config,
+    esp_lcd_panel_handle_t           *ret_panel,
+    esp_lcd_dsi_bus_handle_t          dsi_bus,
+    esp_lcd_dpi_panel_config_t const *dpi_config
 );
 
 // Initialize MIPI DSI driver.

@@ -3,7 +3,15 @@
 
 #include "bsp/disp_mipi_dsi.h"
 
+#include <sdkconfig.h>
+
+#if CONFIG_BSP_PLATFORM_WHY2025P1
 #include "hardware/why2025.h"
+#elif CONFIG_BSP_PLATFORM_P4DEVKIT01
+#include "hardware/p4devkit.h"
+#elif CONFIG_BSP_PLATFORM_P4DEVKIT01_ST7701
+#include "hardware/p4devkit.h"
+#endif
 
 #include <stdatomic.h>
 
@@ -116,33 +124,18 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
     // Initialise panel.
     esp_lcd_panel_dev_config_t lcd_config = {
         .bits_per_pixel = 16,
-        .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+        .rgb_ele_order  = LCD_RGB_ELEMENT_ORDER_RGB,
         .reset_gpio_num = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->common.reset_pin,
         .flags = {
             .reset_active_high = false,
         },
     };
-    if ((res = new_fun(disp->io_handle, &lcd_config, &disp->ctrl_handle)) != ESP_OK) {
-        goto error3;
-    }
-
-    // Turn on the display.
-    if ((res = esp_lcd_panel_reset(disp->ctrl_handle)) != ESP_OK) {
-        goto error3;
-    }
-    if ((res = esp_lcd_panel_init(disp->ctrl_handle)) != ESP_OK) {
-        goto error3;
-    }
-    if ((res = esp_lcd_panel_disp_on_off(disp->ctrl_handle, true)) != ESP_OK) {
-        goto error3;
-    }
-
-    // Create data channel.
     esp_lcd_dpi_panel_config_t dpi_config = {
         .virtual_channel    = 0,
         .dpi_clk_src        = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
         .dpi_clock_freq_mhz = BSP_DSI_DPI_CLK_MHZ,
         .pixel_format       = LCD_COLOR_PIXEL_FORMAT_RGB565,
+        .num_fbs            = 1,
         .video_timing = {
             .h_size            = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->width,
             .v_size            = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->height,
@@ -156,6 +149,23 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
         // TODO: Figure out what this is and when to use it.
         .flags.use_dma2d = true,
     };
+    if ((res = new_fun(disp->io_handle, &lcd_config, &disp->ctrl_handle, disp->bus_handle, &dpi_config)) != ESP_OK) {
+        goto error3;
+    }
+
+    // Turn on the display.
+    if ((res = esp_lcd_panel_reset(disp->ctrl_handle)) != ESP_OK) {
+        goto error3;
+    }
+    if ((res = esp_lcd_panel_init(disp->ctrl_handle)) != ESP_OK) {
+        goto error3;
+    }
+    res = esp_lcd_panel_disp_on_off(disp->ctrl_handle, true);
+    if (res != ESP_OK && res != ESP_ERR_NOT_SUPPORTED) {
+        goto error3;
+    }
+
+    // Create data channel.
     if ((res = esp_lcd_new_panel_dpi(disp->bus_handle, &dpi_config, &disp->disp_handle)) != ESP_OK) {
         goto error4;
     }
@@ -209,8 +219,12 @@ bool bsp_disp_dsi_deinit(bsp_device_t *dev, uint8_t endpoint) {
 // Send new image data to a device's display.
 void bsp_disp_dsi_update(bsp_device_t *dev, uint8_t endpoint, void const *framebuffer) {
     bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
+    if (!disp) {
+        ESP_LOGE(TAG, "Missing display context for device %" PRIu32 " endpoint %" PRIu8, dev->id, endpoint);
+        return;
+    }
     xSemaphoreTake(disp->disp_update_sem, portMAX_DELAY);
-    esp_lcd_panel_draw_bitmap(
+    esp_err_t res = esp_lcd_panel_draw_bitmap(
         disp->disp_handle,
         0,
         0,
@@ -218,6 +232,9 @@ void bsp_disp_dsi_update(bsp_device_t *dev, uint8_t endpoint, void const *frameb
         bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->height,
         framebuffer
     );
+    if (res) {
+        ESP_LOGE(TAG, "Display update failed: %s", esp_err_to_name(res));
+    }
 }
 
 // Send new image data to part of a device's display.
@@ -225,5 +242,13 @@ void bsp_disp_dsi_update_part(
     bsp_device_t *dev, uint8_t endpoint, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
 ) {
     bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
-    esp_lcd_panel_draw_bitmap(disp->disp_handle, x, y, w, h, framebuffer);
+    if (!disp) {
+        ESP_LOGE(TAG, "Missing display context for device %" PRIu32 " endpoint %" PRIu8, dev->id, endpoint);
+        return;
+    }
+    xSemaphoreTake(disp->disp_update_sem, portMAX_DELAY);
+    esp_err_t res = esp_lcd_panel_draw_bitmap(disp->disp_handle, x, y, w, h, framebuffer);
+    if (res) {
+        ESP_LOGE(TAG, "Display update part failed: %s", esp_err_to_name(res));
+    }
 }

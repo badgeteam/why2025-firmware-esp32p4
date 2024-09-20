@@ -10,6 +10,7 @@ tools/__pycache__
 esp-idf
 esp-idf-tools
 dependencies.lock
+managed_components
 .IDF_PATH
 .IDF_TOOLS_PATH
 badgesdk

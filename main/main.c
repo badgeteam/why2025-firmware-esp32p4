@@ -103,6 +103,7 @@ void app_main(void) {
     esp_err_t res;
     bsp_preinit();
 
+#if 0
     // Read CH32 version.
     uint16_t version = 0xffff;
     res              = bsp_ch32_version(&version);
@@ -130,6 +131,7 @@ void app_main(void) {
         ch32_program(&handle, ch32_firmware_start, ch32_firmware_end - ch32_firmware_start);
         esp_restart();
     }
+#endif
 
     // Initialize the hardware.
     bsp_init();
@@ -162,7 +164,6 @@ void app_main(void) {
 
     // Initialize AppFS so the app launcher can use it.
     appfsInit(APPFS_PART_TYPE, APPFS_PART_SUBTYPE);
-    fopen("/appfs/app_ok", "rb");
 
     // Compose top-level GUI.
     gui = pgui_new_grid2(1, 3);
@@ -227,7 +228,9 @@ void app_main(void) {
             // Full re-draw required.
             pax_background(gfx, pgui_get_default_theme()->palette[PGUI_VARIANT_DEFAULT].bg_col);
             pgui_draw(gfx, gui, NULL);
+            ESP_LOGI(TAG, "Pre update");
             bsp_disp_update(1, 0, pax_buf_get_pixels(gfx));
+            ESP_LOGI(TAG, "Post update");
             needs_draw   = false;
             needs_redraw = false;
 

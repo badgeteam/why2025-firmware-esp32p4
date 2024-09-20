@@ -4,6 +4,7 @@
 #include "bsp_device.h"
 
 #include "bsp.h"
+#include "bsp/disp_ek79007.h"
 #include "bsp/disp_mipi_dsi.h"
 #include "bsp/disp_st7701.h"
 #include "bsp/input_gpio.h"
@@ -28,6 +29,7 @@ static bsp_input_driver_t const *input_tab[] = {
         },
         .get_raw = bsp_input_gpio_get_raw,
     },
+#if CONFIG_BSP_SUPPORT_WHY2025_COPROC
     [BSP_EP_INPUT_WHY2025_CH32] = &(bsp_input_driver_t const){
         .common = {
             .init    = bsp_input_why2025ch32_init,
@@ -35,11 +37,13 @@ static bsp_input_driver_t const *input_tab[] = {
         },
         .get_raw = bsp_input_why2025ch32_get_raw,
     },
+#endif
 };
 static size_t const input_tab_len = sizeof(input_tab) / sizeof(bsp_input_driver_t const *);
 
 // LED driver table.
 static bsp_led_driver_t const *led_tab[] = {
+#if CONFIG_BSP_SUPPORT_WHY2025_COPROC
     [BSP_EP_LED_WHY2025_CH32] = &(bsp_led_driver_t const) {
         .common = {
             .init = NULL,
@@ -49,11 +53,13 @@ static bsp_led_driver_t const *led_tab[] = {
         .get_raw = bsp_led_why2025ch32_get_raw,
         .update  = bsp_led_why2025ch32_update,
     }
+#endif
 };
 static size_t const led_tab_len = sizeof(led_tab) / sizeof(bsp_led_driver_t const *);
 
 // Display driver table.
 static bsp_disp_driver_t const *const disp_tab[] = {
+#if CONFIG_BSP_SUPPORT_ST7701
     [BSP_EP_DISP_ST7701] = &(bsp_disp_driver_t const){
         .common = {
             .init    = bsp_disp_st7701_init,
@@ -62,6 +68,17 @@ static bsp_disp_driver_t const *const disp_tab[] = {
         .update      = bsp_disp_dsi_update,
         .update_part = bsp_disp_dsi_update_part,
     },
+#endif
+#if CONFIG_BSP_SUPPORT_EK79007
+    [BSP_EP_DISP_EK79007] = &(bsp_disp_driver_t const){
+        .common = {
+            .init    = bsp_disp_ek79007_init,
+            .deinit  = bsp_disp_dsi_deinit,
+        },
+        .update      = bsp_disp_dsi_update,
+        .update_part = bsp_disp_dsi_update_part,
+    },
+#endif
 };
 static size_t const disp_tab_len = sizeof(disp_tab) / sizeof(bsp_disp_driver_t const *);
 
@@ -99,6 +116,7 @@ static uint16_t       modkeys;
 // Get the device mutex shared.
 static bool acq_shared() {
     if (xSemaphoreTake(bsp_dev_mtx, pdMS_TO_TICKS(50)) != pdTRUE) {
+        ESP_LOGW(TAG, "Mutex timeout");
         return false;
     }
     bsp_dev_shares++;
@@ -118,6 +136,7 @@ static bool acq_excl() {
     TickType_t now = xTaskGetTickCount();
     TickType_t lim = now + pdMS_TO_TICKS(50);
     if (xSemaphoreTake(bsp_dev_mtx, lim - now) != pdTRUE) {
+        ESP_LOGW(TAG, "Mutex timeout");
         return false;
     }
     while (bsp_dev_shares) {
