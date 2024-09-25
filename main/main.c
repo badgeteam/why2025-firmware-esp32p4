@@ -103,7 +103,7 @@ void app_main(void) {
     esp_err_t res;
     bsp_preinit();
 
-#if 0
+#if CONFIG_BSP_SUPPORT_WHY2025_COPROC
     // Read CH32 version.
     uint16_t version = 0xffff;
     res              = bsp_ch32_version(&version);
