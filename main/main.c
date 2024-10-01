@@ -205,7 +205,8 @@ void app_main(void) {
     // Set up the menu screens.
     menu_root_init();
     menu_enable(root_menu);
-    bsp_disp_backlight(1, 0, 65535);
+    bsp_disp_backlight(1, 0, 255);
+    bsp_input_backlight(1, 0, 127);
 
     bool needs_draw   = true;
     bool needs_redraw = false;
