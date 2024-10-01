@@ -26,7 +26,7 @@ if(CONFIG_BSP_SUPPORT_WHY2025_COPROC)
     set(srcs ${srcs} src/bsp/why2025_coproc.c)
 endif()
 
-if(CONFIG_BSP_PLATFORM_WHY2025P1)
+if(CONFIG_BSP_PLATFORM_WHY2025)
     set(srcs ${srcs} src/init/why2025.c)
 elseif(CONFIG_BSP_PLATFORM_P4DEVKIT01 OR CONFIG_BSP_PLATFORM_P4DEVKIT01_ST7701)
     set(srcs ${srcs} src/init/p4devkit.c)

@@ -1,12 +1,12 @@
 menu "Badge.team BSP"
     choice
         prompt "Badge platform"
-        default WHY2025
+        default BSP_PLATFORM_WHY2025
         
-        config BSP_PLATFORM_WHY2025P1
+        config BSP_PLATFORM_WHY2025
             select BSP_SUPPORT_ST7701
             select BSP_SUPPORT_WHY2025_COPROC
-            bool "WHY2025 badge prototype 1"
+            bool "WHY2025 badge prototype 2"
         
         config BSP_PLATFORM_P4DEVKIT01
             select BSP_SUPPORT_EK79007

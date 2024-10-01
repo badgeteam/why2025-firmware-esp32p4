@@ -5,7 +5,7 @@
 
 #include <sdkconfig.h>
 
-#if CONFIG_BSP_PLATFORM_WHY2025P1
+#if CONFIG_BSP_PLATFORM_WHY2025
 #include "hardware/why2025.h"
 #elif CONFIG_BSP_PLATFORM_P4DEVKIT01
 #include "hardware/p4devkit.h"
