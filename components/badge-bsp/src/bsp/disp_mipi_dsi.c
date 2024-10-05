@@ -3,7 +3,17 @@
 
 #include "bsp/disp_mipi_dsi.h"
 
+#include <sdkconfig.h>
+
+#if CONFIG_BSP_PLATFORM_WHY2025
 #include "hardware/why2025.h"
+#elif CONFIG_BSP_PLATFORM_P4DEVKIT01
+#include "hardware/p4devkit.h"
+#elif CONFIG_BSP_PLATFORM_P4DEVKIT01_ST7701
+#include "hardware/p4devkit.h"
+#endif
+
+#include <stdatomic.h>
 
 #include <esp_err.h>
 #include <esp_lcd_mipi_dsi.h>
@@ -11,6 +21,8 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_ldo_regulator.h>
 #include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 static char const TAG[] = "bsp-dsi";
 
@@ -22,6 +34,7 @@ typedef struct {
     esp_lcd_dsi_bus_handle_t  bus_handle;
     esp_lcd_panel_handle_t    ctrl_handle;
     esp_lcd_panel_handle_t    disp_handle;
+    SemaphoreHandle_t         disp_update_sem;
 } bsp_disp_dsi_t;
 
 
@@ -29,7 +42,7 @@ typedef struct {
 // LDO regulator handle.
 static esp_ldo_channel_handle_t ldo_handle = NULL;
 
-// Power on Mipi DSI PHY.
+// Power on MIPI DSI PHY.
 static esp_err_t dsi_phy_poweron() {
     // Turn on the power for MIPI DSI PHY, so it can go from "No Power" state to "Shutdown" state
     esp_ldo_channel_config_t ldo_config = {
@@ -43,7 +56,7 @@ static esp_err_t dsi_phy_poweron() {
     return res;
 }
 
-// Power off Mipi DSI PHY.
+// Power off MIPI DSI PHY.
 static esp_err_t dsi_phy_poweroff() {
     esp_err_t res = esp_ldo_release_channel(ldo_handle);
     if (res == ESP_OK) {
@@ -52,19 +65,34 @@ static esp_err_t dsi_phy_poweroff() {
     return res;
 }
 
+// MIPI DSI transfer done.
+static bool
+    bsp_disp_dsi_update_done(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
+    bsp_disp_dsi_t *disp = user_ctx;
+    xSemaphoreGive(disp->disp_update_sem);
+    return false;
+}
+
 
 
 // Initialize MIPI DSI driver.
 bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t new_fun) {
+    esp_err_t res = 0;
+
     // Allocate data structures.
     dev->disp_aux[endpoint] = malloc(sizeof(bsp_disp_dsi_t));
     if (!dev->disp_aux[endpoint]) {
         ESP_LOGE(TAG, "Failed to initialize DSI display: %s", "out of memory");
         return false;
     }
-    bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
+    bsp_disp_dsi_t *disp  = dev->disp_aux[endpoint];
+    disp->disp_update_sem = xSemaphoreCreateBinary();
+    if (!disp->disp_update_sem) {
+        goto error;
+    }
+    xSemaphoreGive(disp->disp_update_sem);
 
-    esp_err_t res = dsi_phy_poweron();
+    res = dsi_phy_poweron();
     if (res != ESP_OK) {
         goto error;
     }
@@ -96,13 +124,32 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
     // Initialise panel.
     esp_lcd_panel_dev_config_t lcd_config = {
         .bits_per_pixel = 16,
-        .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-        .reset_gpio_num = dev->tree->disp_dev[endpoint]->common.reset_pin,
+        .rgb_ele_order  = LCD_RGB_ELEMENT_ORDER_RGB,
+        .reset_gpio_num = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->common.reset_pin,
         .flags = {
             .reset_active_high = false,
         },
     };
-    if ((res = new_fun(disp->io_handle, &lcd_config, &disp->ctrl_handle)) != ESP_OK) {
+    esp_lcd_dpi_panel_config_t dpi_config = {
+        .virtual_channel    = 0,
+        .dpi_clk_src        = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
+        .dpi_clock_freq_mhz = BSP_DSI_DPI_CLK_MHZ,
+        .pixel_format       = LCD_COLOR_PIXEL_FORMAT_RGB565,
+        .num_fbs            = 1,
+        .video_timing = {
+            .h_size            = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->width,
+            .v_size            = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->height,
+            .hsync_back_porch  = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->h_bp,
+            .hsync_pulse_width = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->h_sync,
+            .hsync_front_porch = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->h_fp,
+            .vsync_back_porch  = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->v_bp,
+            .vsync_pulse_width = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->v_sync,
+            .vsync_front_porch = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->v_fp,
+        },
+        // TODO: Figure out what this is and when to use it.
+        .flags.use_dma2d = true,
+    };
+    if ((res = new_fun(disp->io_handle, &lcd_config, &disp->ctrl_handle, disp->bus_handle, &dpi_config)) != ESP_OK) {
         goto error3;
     }
 
@@ -113,32 +160,19 @@ bool bsp_disp_dsi_init(bsp_device_t *dev, uint8_t endpoint, bsp_disp_dsi_new_t n
     if ((res = esp_lcd_panel_init(disp->ctrl_handle)) != ESP_OK) {
         goto error3;
     }
-    if ((res = esp_lcd_panel_disp_on_off(disp->ctrl_handle, true)) != ESP_OK) {
+    res = esp_lcd_panel_disp_on_off(disp->ctrl_handle, true);
+    if (res != ESP_OK && res != ESP_ERR_NOT_SUPPORTED) {
         goto error3;
     }
 
     // Create data channel.
-    esp_lcd_dpi_panel_config_t dpi_config = {
-        .virtual_channel    = 0,
-        .dpi_clk_src        = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-        .dpi_clock_freq_mhz = BSP_DSI_DPI_CLK_MHZ,
-        .pixel_format       = LCD_COLOR_PIXEL_FORMAT_RGB565,
-        .video_timing = {
-            .h_size            = dev->tree->disp_dev[endpoint]->width,
-            .v_size            = dev->tree->disp_dev[endpoint]->height,
-            .hsync_back_porch  = dev->tree->disp_dev[endpoint]->h_bp,
-            .hsync_pulse_width = dev->tree->disp_dev[endpoint]->h_sync,
-            .hsync_front_porch = dev->tree->disp_dev[endpoint]->h_fp,
-            .vsync_back_porch  = dev->tree->disp_dev[endpoint]->v_bp,
-            .vsync_pulse_width = dev->tree->disp_dev[endpoint]->v_sync,
-            .vsync_front_porch = dev->tree->disp_dev[endpoint]->v_fp,
-        },
-        // TODO: Figure out what this is and when to use it.
-        .flags.use_dma2d = true,
-    };
     if ((res = esp_lcd_new_panel_dpi(disp->bus_handle, &dpi_config, &disp->disp_handle)) != ESP_OK) {
         goto error4;
     }
+    esp_lcd_dpi_panel_event_callbacks_t callbacks = {
+        .on_color_trans_done = bsp_disp_dsi_update_done,
+    };
+    esp_lcd_dpi_panel_register_event_callbacks(disp->disp_handle, &callbacks, disp);
     if ((res = esp_lcd_panel_init(disp->disp_handle)) != ESP_OK) {
         esp_lcd_panel_del(disp->disp_handle);
         goto error4;
@@ -160,6 +194,7 @@ error2:
     dsi_phy_poweroff();
 error:
     ESP_LOGI(TAG, "error1");
+    vSemaphoreDelete(disp->disp_update_sem);
     free(dev->disp_aux[endpoint]);
     dev->disp_aux[endpoint] = NULL;
     ESP_LOGE(TAG, "Failed to initialize DSI display: %s", esp_err_to_name(res));
@@ -173,6 +208,8 @@ bool bsp_disp_dsi_deinit(bsp_device_t *dev, uint8_t endpoint) {
     esp_lcd_panel_del(disp->disp_handle);
     esp_lcd_panel_del(disp->ctrl_handle);
     esp_lcd_del_dsi_bus(disp->bus_handle);
+    vSemaphoreDelete(disp->disp_update_sem);
+    free(disp);
     dsi_phy_poweroff();
     return true;
 }
@@ -182,14 +219,22 @@ bool bsp_disp_dsi_deinit(bsp_device_t *dev, uint8_t endpoint) {
 // Send new image data to a device's display.
 void bsp_disp_dsi_update(bsp_device_t *dev, uint8_t endpoint, void const *framebuffer) {
     bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
-    esp_lcd_panel_draw_bitmap(
+    if (!disp) {
+        ESP_LOGE(TAG, "Missing display context for device %" PRIu32 " endpoint %" PRIu8, dev->id, endpoint);
+        return;
+    }
+    xSemaphoreTake(disp->disp_update_sem, portMAX_DELAY);
+    esp_err_t res = esp_lcd_panel_draw_bitmap(
         disp->disp_handle,
         0,
         0,
-        dev->tree->disp_dev[endpoint]->width,
-        dev->tree->disp_dev[endpoint]->height,
+        bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->width,
+        bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->height,
         framebuffer
     );
+    if (res) {
+        ESP_LOGE(TAG, "Display update failed: %s", esp_err_to_name(res));
+    }
 }
 
 // Send new image data to part of a device's display.
@@ -197,5 +242,13 @@ void bsp_disp_dsi_update_part(
     bsp_device_t *dev, uint8_t endpoint, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
 ) {
     bsp_disp_dsi_t *disp = dev->disp_aux[endpoint];
-    esp_lcd_panel_draw_bitmap(disp->disp_handle, x, y, w, h, framebuffer);
+    if (!disp) {
+        ESP_LOGE(TAG, "Missing display context for device %" PRIu32 " endpoint %" PRIu8, dev->id, endpoint);
+        return;
+    }
+    xSemaphoreTake(disp->disp_update_sem, portMAX_DELAY);
+    esp_err_t res = esp_lcd_panel_draw_bitmap(disp->disp_handle, x, y, w, h, framebuffer);
+    if (res) {
+        ESP_LOGE(TAG, "Display update part failed: %s", esp_err_to_name(res));
+    }
 }

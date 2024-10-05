@@ -1,0 +1,37 @@
+menu "Badge.team BSP"
+    choice
+        prompt "Badge platform"
+        default BSP_PLATFORM_WHY2025
+        
+        config BSP_PLATFORM_WHY2025
+            select BSP_SUPPORT_ST7701
+            select BSP_SUPPORT_WHY2025_COPROC
+            bool "WHY2025 badge prototype 2"
+        
+        config BSP_PLATFORM_P4DEVKIT01
+            select BSP_SUPPORT_EK79007
+            bool "ESP32-P4 devkit v0.1 (default screen)"
+        
+        config BSP_PLATFORM_P4DEVKIT01_ST7701
+            select BSP_SUPPORT_ST7701
+            bool "ESP32-P4 devkit v0.1 (WHY2025's ST7701)"
+    endchoice
+    
+    config BSP_PAX_INTEGRATION
+        default y
+        bool "Enable the BSP's PAX graphics helper functions"
+    
+    config BSP_SUPPORT_MIPI_DSI
+        bool "Support MIPI DSI displays"
+    
+    config BSP_SUPPORT_ST7701
+        select BSP_SUPPORT_MIPI_DSI
+        bool "Support the ST7701 display driver"
+    
+    config BSP_SUPPORT_EK79007
+        select BSP_SUPPORT_MIPI_DSI
+        bool "Support the EK79007 display driver"
+    
+    config BSP_SUPPORT_WHY2025_COPROC
+        bool "Support the WHY2025 badge's co-processors"
+endmenu

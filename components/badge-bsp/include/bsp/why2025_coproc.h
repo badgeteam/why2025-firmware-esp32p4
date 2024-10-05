@@ -14,6 +14,11 @@
 
 /* ==== platform-specific functions ==== */
 
+// Enable the WHY2025 badge internal I²C bus.
+extern bool why2025_enable_i2cint;
+
+// Get the C6 version.
+esp_err_t bsp_ch32_version(uint16_t *ver);
 // Initialise the co-processor drivers.
 esp_err_t bsp_why2025_coproc_init();
 

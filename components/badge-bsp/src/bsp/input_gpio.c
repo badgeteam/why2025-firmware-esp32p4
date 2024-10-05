@@ -45,7 +45,7 @@ static void gpio_input_isr(void *arg) {
 
 // GPIO input init function.
 bool bsp_input_gpio_init(bsp_device_t *dev, uint8_t endpoint) {
-    bsp_input_devtree_t const *tree = dev->tree->input_dev[endpoint];
+    bsp_input_devtree_t const *tree = bsp_dev_get_tree_raw(dev)->input_dev[endpoint];
 
     // Verify input pins.
     for (uint8_t i = 0; i < tree->pinmap->pins_len; i++) {
@@ -105,7 +105,7 @@ pinerr:
 
 // GPIO input deinit function.
 bool bsp_input_gpio_deinit(bsp_device_t *dev, uint8_t endpoint) {
-    bsp_input_devtree_t const *tree = dev->tree->input_dev[endpoint];
+    bsp_input_devtree_t const *tree = bsp_dev_get_tree_raw(dev)->input_dev[endpoint];
 
     // Remove interrupts from pins.
     for (uint8_t i = 0; i < tree->pinmap->pins_len; i++) {
@@ -119,6 +119,6 @@ bool bsp_input_gpio_deinit(bsp_device_t *dev, uint8_t endpoint) {
 
 // Get current input value by raw input number.
 bool bsp_input_gpio_get_raw(bsp_device_t *dev, uint8_t endpoint, uint16_t raw_input) {
-    bsp_input_devtree_t const *tree = dev->tree->input_dev[endpoint];
+    bsp_input_devtree_t const *tree = bsp_dev_get_tree_raw(dev)->input_dev[endpoint];
     return gpio_get_level(tree->pinmap->pins[raw_input]);
 }

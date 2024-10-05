@@ -4,6 +4,7 @@
 #include "bsp_device.h"
 
 #include "bsp.h"
+#include "bsp/disp_ek79007.h"
 #include "bsp/disp_mipi_dsi.h"
 #include "bsp/disp_st7701.h"
 #include "bsp/input_gpio.h"
@@ -28,6 +29,7 @@ static bsp_input_driver_t const *input_tab[] = {
         },
         .get_raw = bsp_input_gpio_get_raw,
     },
+#if CONFIG_BSP_SUPPORT_WHY2025_COPROC
     [BSP_EP_INPUT_WHY2025_CH32] = &(bsp_input_driver_t const){
         .common = {
             .init    = bsp_input_why2025ch32_init,
@@ -35,11 +37,13 @@ static bsp_input_driver_t const *input_tab[] = {
         },
         .get_raw = bsp_input_why2025ch32_get_raw,
     },
+#endif
 };
 static size_t const input_tab_len = sizeof(input_tab) / sizeof(bsp_input_driver_t const *);
 
 // LED driver table.
 static bsp_led_driver_t const *led_tab[] = {
+#if CONFIG_BSP_SUPPORT_WHY2025_COPROC
     [BSP_EP_LED_WHY2025_CH32] = &(bsp_led_driver_t const) {
         .common = {
             .init = NULL,
@@ -49,11 +53,13 @@ static bsp_led_driver_t const *led_tab[] = {
         .get_raw = bsp_led_why2025ch32_get_raw,
         .update  = bsp_led_why2025ch32_update,
     }
+#endif
 };
 static size_t const led_tab_len = sizeof(led_tab) / sizeof(bsp_led_driver_t const *);
 
 // Display driver table.
 static bsp_disp_driver_t const *const disp_tab[] = {
+#if CONFIG_BSP_SUPPORT_ST7701
     [BSP_EP_DISP_ST7701] = &(bsp_disp_driver_t const){
         .common = {
             .init    = bsp_disp_st7701_init,
@@ -62,6 +68,17 @@ static bsp_disp_driver_t const *const disp_tab[] = {
         .update      = bsp_disp_dsi_update,
         .update_part = bsp_disp_dsi_update_part,
     },
+#endif
+#if CONFIG_BSP_SUPPORT_EK79007
+    [BSP_EP_DISP_EK79007] = &(bsp_disp_driver_t const){
+        .common = {
+            .init    = bsp_disp_ek79007_init,
+            .deinit  = bsp_disp_dsi_deinit,
+        },
+        .update      = bsp_disp_dsi_update,
+        .update_part = bsp_disp_dsi_update_part,
+    },
+#endif
 };
 static size_t const disp_tab_len = sizeof(disp_tab) / sizeof(bsp_disp_driver_t const *);
 
@@ -99,6 +116,7 @@ static uint16_t       modkeys;
 // Get the device mutex shared.
 static bool acq_shared() {
     if (xSemaphoreTake(bsp_dev_mtx, pdMS_TO_TICKS(50)) != pdTRUE) {
+        ESP_LOGW(TAG, "Mutex timeout");
         return false;
     }
     bsp_dev_shares++;
@@ -118,6 +136,7 @@ static bool acq_excl() {
     TickType_t now = xTaskGetTickCount();
     TickType_t lim = now + pdMS_TO_TICKS(50);
     if (xSemaphoreTake(bsp_dev_mtx, lim - now) != pdTRUE) {
+        ESP_LOGW(TAG, "Mutex timeout");
         return false;
     }
     while (bsp_dev_shares) {
@@ -146,7 +165,7 @@ static void run_init_funcs(bsp_device_t *dev, bool is_deinit) {
     // Count number of endpoints.
     uint16_t ep_count = 0;
     for (int i = 0; i < BSP_EP_TYPE_COUNT; i++) {
-        ep_count += dev->tree->ep_counts[i];
+        ep_count += bsp_dev_get_tree_raw(dev)->ep_counts[i];
     }
 
     int thr_prio = is_deinit ? INT_MAX : INT_MIN;
@@ -154,8 +173,8 @@ static void run_init_funcs(bsp_device_t *dev, bool is_deinit) {
         int cur_prio = is_deinit ? INT_MIN : INT_MAX;
         // Get minimum priority.
         for (int i = 0; i < BSP_EP_TYPE_COUNT; i++) {
-            for (int j = 0; j < dev->tree->ep_counts[i]; j++) {
-                int prio = dev->tree->ep_trees[i][j]->init_prio;
+            for (int j = 0; j < bsp_dev_get_tree_raw(dev)->ep_counts[i]; j++) {
+                int prio = bsp_dev_get_tree_raw(dev)->ep_trees[i][j]->init_prio;
                 if (is_deinit && prio <= thr_prio && prio > cur_prio) {
                     cur_prio = prio;
                 } else if (!is_deinit && prio >= thr_prio && prio < cur_prio) {
@@ -167,8 +186,8 @@ static void run_init_funcs(bsp_device_t *dev, bool is_deinit) {
 
         // Run all matching init functions.
         for (int i = 0; i < BSP_EP_TYPE_COUNT; i++) {
-            for (int j = 0; j < dev->tree->ep_counts[i]; j++) {
-                int prio = dev->tree->ep_trees[i][j]->init_prio;
+            for (int j = 0; j < bsp_dev_get_tree_raw(dev)->ep_counts[i]; j++) {
+                int prio = bsp_dev_get_tree_raw(dev)->ep_trees[i][j]->init_prio;
                 if (prio != cur_prio) {
                     continue;
                 }
@@ -225,6 +244,7 @@ static void bsp_dev_free(bsp_device_t *dev) {
         free(dev->ep_aux[i]);
         free(dev->ep_drivers[i]);
     }
+    rc_delete(dev->tree);
     free(dev);
 }
 
@@ -262,7 +282,7 @@ static bool bsp_dev_unregister_int(uint32_t dev_id, bool show_msg) {
 }
 
 // Register a new device and assign an ID to it.
-uint32_t bsp_dev_register(bsp_devtree_t const *tree) {
+uint32_t bsp_dev_register(bsp_devtree_t const *tree, bool is_rom) {
     if (!acq_excl()) {
         return 0;
     }
@@ -294,8 +314,12 @@ uint32_t bsp_dev_register(bsp_devtree_t const *tree) {
     devices              = mem;
     devices[devices_len] = dev;
     devices_len++;
-    dev->id   = next_dev_id;
-    dev->tree = tree;
+    dev->id = next_dev_id;
+    if (is_rom) {
+        dev->tree = rc_new_strong((void *)tree, NULL);
+    } else {
+        dev->tree = rc_new_strong((void *)tree, free);
+    }
     next_dev_id++;
 
     // Install drivers.
@@ -332,7 +356,7 @@ bool bsp_input_get(uint32_t dev_id, uint8_t endpoint, bsp_input_t input) {
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
     bool          ret = false;
-    if (idx >= 0 && endpoint < dev->tree->input_count && dev->input_drivers[endpoint]) {
+    if (idx >= 0 && endpoint < bsp_dev_get_tree_raw(dev)->input_count && dev->input_drivers[endpoint]) {
         ret = dev->input_drivers[endpoint]->get(dev, endpoint, input);
     }
     rel_shared();
@@ -347,7 +371,7 @@ bool bsp_input_get_raw(uint32_t dev_id, uint8_t endpoint, uint16_t raw_input) {
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
     bool          ret = false;
-    if (idx >= 0 && endpoint < dev->tree->input_count && dev->input_drivers[endpoint]) {
+    if (idx >= 0 && endpoint < bsp_dev_get_tree_raw(dev)->input_count && dev->input_drivers[endpoint]) {
         ret = dev->input_drivers[endpoint]->get_raw(dev, endpoint, raw_input);
     }
     rel_shared();
@@ -361,18 +385,18 @@ void bsp_input_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm) {
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->disp_count) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->disp_count) {
         rel_shared();
         return;
     }
-    uint8_t bl_ep  = dev->tree->input_dev[endpoint]->backlight_endpoint;
-    uint8_t bl_idx = dev->tree->input_dev[endpoint]->backlight_index;
-    if (bl_ep >= dev->tree->led_count || bl_idx >= dev->tree->led_count) {
+    uint8_t bl_ep  = bsp_dev_get_tree_raw(dev)->input_dev[endpoint]->backlight_endpoint;
+    uint8_t bl_idx = bsp_dev_get_tree_raw(dev)->input_dev[endpoint]->backlight_index;
+    if (bl_ep >= bsp_dev_get_tree_raw(dev)->led_count || bl_idx >= bsp_dev_get_tree_raw(dev)->led_count) {
         rel_shared();
         return;
     }
     if (dev->led_drivers[endpoint]) {
-        uint64_t value = bsp_grey16_to_col(dev->tree->led_dev[endpoint]->ledfmt.color, pwm);
+        uint64_t value = bsp_grey16_to_col(bsp_dev_get_tree_raw(dev)->led_dev[endpoint]->ledfmt.color, pwm);
         dev->led_drivers[endpoint]->set_raw(dev, endpoint, idx, value);
         dev->led_drivers[endpoint]->update(dev, endpoint);
     }
@@ -387,11 +411,11 @@ void bsp_led_set_grey16(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint16_
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return;
     }
-    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_devtree_t const *tree   = bsp_dev_get_tree_raw(dev)->led_dev[endpoint];
     bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
     driver->set_raw(dev, endpoint, led, bsp_grey16_to_col(tree->ledfmt.color, value));
     rel_shared();
@@ -404,11 +428,11 @@ uint16_t bsp_led_get_grey16(uint32_t dev_id, uint8_t endpoint, uint16_t led) {
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return 0;
     }
-    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_devtree_t const *tree   = bsp_dev_get_tree_raw(dev)->led_dev[endpoint];
     bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
     uint64_t                 raw    = driver->get_raw(dev, endpoint, led);
     rel_shared();
@@ -422,11 +446,11 @@ void bsp_led_set_grey8(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint16_t
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return;
     }
-    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_devtree_t const *tree   = bsp_dev_get_tree_raw(dev)->led_dev[endpoint];
     bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
     driver->set_raw(dev, endpoint, led, bsp_grey8_to_col(tree->ledfmt.color, value));
     rel_shared();
@@ -439,11 +463,11 @@ uint16_t bsp_led_get_grey8(uint32_t dev_id, uint8_t endpoint, uint16_t led) {
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return 0;
     }
-    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_devtree_t const *tree   = bsp_dev_get_tree_raw(dev)->led_dev[endpoint];
     bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
     uint64_t                 raw    = driver->get_raw(dev, endpoint, led);
     rel_shared();
@@ -457,11 +481,11 @@ void bsp_led_set_rgb48(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint64_t
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return;
     }
-    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_devtree_t const *tree   = bsp_dev_get_tree_raw(dev)->led_dev[endpoint];
     bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
     driver->set_raw(dev, endpoint, led, bsp_rgb48_to_col(tree->ledfmt.color, rgb));
     rel_shared();
@@ -474,11 +498,11 @@ uint64_t bsp_led_get_rgb48(uint32_t dev_id, uint8_t endpoint, uint16_t led) {
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return 0;
     }
-    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_devtree_t const *tree   = bsp_dev_get_tree_raw(dev)->led_dev[endpoint];
     bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
     uint64_t                 raw    = driver->get_raw(dev, endpoint, led);
     rel_shared();
@@ -492,11 +516,11 @@ void bsp_led_set_rgb(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint32_t r
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return;
     }
-    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_devtree_t const *tree   = bsp_dev_get_tree_raw(dev)->led_dev[endpoint];
     bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
     driver->set_raw(dev, endpoint, led, bsp_rgb_to_col(tree->ledfmt.color, rgb));
     rel_shared();
@@ -509,11 +533,11 @@ uint32_t bsp_led_get_rgb(uint32_t dev_id, uint8_t endpoint, uint16_t led) {
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return 0;
     }
-    bsp_led_devtree_t const *tree   = dev->tree->led_dev[endpoint];
+    bsp_led_devtree_t const *tree   = bsp_dev_get_tree_raw(dev)->led_dev[endpoint];
     bsp_led_driver_t const  *driver = dev->led_drivers[endpoint];
     uint64_t                 raw    = driver->get_raw(dev, endpoint, led);
     rel_shared();
@@ -528,7 +552,7 @@ void bsp_led_set_raw(uint32_t dev_id, uint8_t endpoint, uint16_t led, uint64_t d
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return;
     }
@@ -544,7 +568,7 @@ uint64_t bsp_led_get_raw(uint32_t dev_id, uint8_t endpoint, uint16_t led) {
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return 0;
     }
@@ -561,7 +585,7 @@ void bsp_led_update(uint32_t dev_id, uint8_t endpoint) {
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->led_count || !dev->led_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->led_count || !dev->led_drivers[endpoint]) {
         rel_shared();
         return;
     }
@@ -578,7 +602,7 @@ void bsp_disp_update(uint32_t dev_id, uint8_t endpoint, void const *framebuffer)
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx >= 0 && endpoint < dev->tree->disp_count && dev->disp_drivers[endpoint]) {
+    if (idx >= 0 && endpoint < bsp_dev_get_tree_raw(dev)->disp_count && dev->disp_drivers[endpoint]) {
         dev->disp_drivers[endpoint]->update(dev, endpoint, framebuffer);
     }
     rel_shared();
@@ -593,7 +617,7 @@ void bsp_disp_update_part(
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx >= 0 && endpoint < dev->tree->disp_count && dev->disp_drivers[endpoint]) {
+    if (idx >= 0 && endpoint < bsp_dev_get_tree_raw(dev)->disp_count && dev->disp_drivers[endpoint]) {
         dev->disp_drivers[endpoint]->update_part(dev, endpoint, framebuffer, x, y, w, h);
     }
     rel_shared();
@@ -606,18 +630,18 @@ void bsp_disp_backlight(uint32_t dev_id, uint8_t endpoint, uint16_t pwm) {
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->disp_count) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->disp_count) {
         rel_shared();
         return;
     }
-    uint8_t bl_ep  = dev->tree->disp_dev[endpoint]->backlight_endpoint;
-    uint8_t bl_idx = dev->tree->disp_dev[endpoint]->backlight_index;
-    if (bl_ep >= dev->tree->led_count || bl_idx >= dev->tree->led_count) {
+    uint8_t bl_ep  = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->backlight_endpoint;
+    uint8_t bl_idx = bsp_dev_get_tree_raw(dev)->disp_dev[endpoint]->backlight_index;
+    if (bl_ep >= bsp_dev_get_tree_raw(dev)->led_count || bl_idx >= bsp_dev_get_tree_raw(dev)->led_count) {
         rel_shared();
         return;
     }
     if (dev->led_drivers[endpoint]) {
-        uint64_t value = bsp_grey16_to_col(dev->tree->led_dev[endpoint]->ledfmt.color, pwm);
+        uint64_t value = bsp_grey16_to_col(bsp_dev_get_tree_raw(dev)->led_dev[endpoint]->ledfmt.color, pwm);
         dev->led_drivers[endpoint]->set_raw(dev, endpoint, idx, value);
         dev->led_drivers[endpoint]->update(dev, endpoint);
     }
@@ -727,13 +751,13 @@ static void button_event_impl(uint32_t dev_id, uint8_t endpoint, int input, bool
     }
     ptrdiff_t     idx = bsp_find_device(dev_id);
     bsp_device_t *dev = devices[idx];
-    if (idx < 0 || endpoint >= dev->tree->input_count || !dev->input_drivers[endpoint]) {
+    if (idx < 0 || endpoint >= bsp_dev_get_tree_raw(dev)->input_count || !dev->input_drivers[endpoint]) {
         if (!from_isr) {
             rel_shared();
         }
         return;
     }
-    bsp_input_devtree_t const *tree = dev->tree->input_dev[endpoint];
+    bsp_input_devtree_t const *tree = bsp_dev_get_tree_raw(dev)->input_dev[endpoint];
     bsp_event_t                event;
     event.type            = BSP_EVENT_INPUT;
     event.input.type      = pressed ? BSP_INPUT_EVENT_PRESS : BSP_INPUT_EVENT_RELEASE;
@@ -782,4 +806,21 @@ void bsp_raw_button_pressed_from_isr(uint32_t dev_id, uint8_t endpoint, int inpu
 // Call to notify the BSP of a button release.
 void bsp_raw_button_released_from_isr(uint32_t dev_id, uint8_t endpoint, int input) {
     button_event_impl(dev_id, endpoint, input, false, true);
+}
+
+
+
+// Obtain a share of the device tree shared pointer that can be cleaned up with `rc_delete()`.
+rc_t bsp_dev_get_devtree(uint32_t dev_id) {
+    if (!acq_shared()) {
+        return NULL;
+    }
+    rc_t          val = NULL;
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    if (idx >= 0) {
+        val = rc_share(dev->tree);
+    }
+    rel_shared();
+    return val;
 }

@@ -5,6 +5,6 @@
 cmake_minimum_required(VERSION 3.16)
 
 set(PROJECT_VER "0.0.1")
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-include(build/badge_export_symbols.cmake)
 project(why2025-firmware-esp32p4)

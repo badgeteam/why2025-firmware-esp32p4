@@ -11,7 +11,30 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <refcount.h>
 
+
+
+// Display orientation settings.
+typedef enum {
+    // No change in orientation.
+    BSP_O_UPRIGHT,
+    // Counter-clockwise rotation.
+    BSP_O_ROT_CCW,
+    // Half turn rotation.
+    BSP_O_ROT_HALF,
+    // Clockwise rotation.
+    BSP_O_ROT_CW,
+
+    // Flip horizontally.
+    BSP_O_FLIP_H,
+    // Counter-clockwise rotation then flip horizontally.
+    BSP_O_ROT_CCW_FLIP_H,
+    // Half turn rotation then flip horizontally.
+    BSP_O_ROT_HALF_FLIP_H,
+    // Clockwise rotation then flip horizontally.
+    BSP_O_ROT_CW_FLIP_H,
+} bsp_orient_t;
 
 // Endpoint types.
 typedef enum {
@@ -60,6 +83,7 @@ typedef enum {
 // Display endpoint types.
 typedef enum {
     BSP_EP_DISP_ST7701,
+    BSP_EP_DISP_EK79007,
 } bsp_ep_disp_type_t;
 
 // Audio endpoint types.
@@ -197,24 +221,26 @@ struct bsp_display_devtree {
     uint16_t             backlight_index;
     // Pixel format.
     bsp_led_desc_t       pixfmt;
+    // Display orientation.
+    bsp_orient_t         orientation;
 
     // Horizontal front porch width.
-    uint8_t  h_fp;
+    uint16_t h_fp;
     // Display width.
     uint16_t width;
     // Horizontal back porch width.
-    uint8_t  h_bp;
+    uint16_t h_bp;
     // Horizontal sync width.
-    uint8_t  h_sync;
+    uint16_t h_sync;
 
     // Horizontal front porch height.
-    uint8_t  v_fp;
+    uint16_t v_fp;
     // Display height.
     uint16_t height;
     // Horizontal back porch height.
-    uint8_t  v_bp;
+    uint16_t v_bp;
     // Horizontal sync height.
-    uint8_t  v_sync;
+    uint16_t v_sync;
 };
 
 // Audio device tree data.
@@ -302,9 +328,9 @@ struct bsp_audio_driver {
 // Registered device.
 struct bsp_device {
     // BSP device ID.
-    uint32_t             id;
+    uint32_t id;
     // Device tree.
-    bsp_devtree_t const *tree;
+    rc_t     tree;
     union {
         struct {
             // Drivers for input endpoints.
@@ -337,17 +363,5 @@ struct bsp_device {
 
 
 
-// Register a new device and assign an ID to it.
-uint32_t bsp_dev_register(bsp_devtree_t const *tree);
-// Unregister an existing device.
-bool     bsp_dev_unregister(uint32_t dev_id);
-
-// Call to notify the BSP of a button press.
-void bsp_raw_button_pressed(uint32_t dev_id, uint8_t endpoint, int input);
-// Call to notify the BSP of a button release.
-void bsp_raw_button_released(uint32_t dev_id, uint8_t endpoint, int input);
-
-// Call to notify the BSP of a button press.
-void bsp_raw_button_pressed_from_isr(uint32_t dev_id, uint8_t endpoint, int input);
-// Call to notify the BSP of a button release.
-void bsp_raw_button_released_from_isr(uint32_t dev_id, uint8_t endpoint, int input);
+// Create a copy of the device tree that can be cleaned up with `free()`.
+bsp_devtree_t *bsp_devtree_clone(bsp_devtree_t const *devtree);

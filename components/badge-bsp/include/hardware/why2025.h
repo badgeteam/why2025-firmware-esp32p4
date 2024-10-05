@@ -6,9 +6,9 @@
 // I²C peripheral used for internal I²C bus.
 #define BSP_I2CINT_NUM     0
 // Internal I²C bus SDA pin.
-#define BSP_I2CINT_SDA_PIN 52
+#define BSP_I2CINT_SDA_PIN 9
 // Internal I²C bus SCL pin.
-#define BSP_I2CINT_SCL_PIN 53
+#define BSP_I2CINT_SCL_PIN 10
 
 // I²S peripheral number
 #define BSP_I2S_NUM        0
@@ -23,9 +23,11 @@
 
 
 // Interrupt pin from the CH32V203 to the ESP32P4.
-#define BSP_CH32_IRQ_PIN 49
+#define BSP_CH32_IRQ_PIN 6
 // I²C address for the CH32V203.
 #define BSP_CH32_ADDR    0x5f
+// Expected CH32 version.
+#define BSP_CH32_VERSION 0x01
 
 #define BSP_SDIO_CLK   17
 #define BSP_SDIO_CMD   16
@@ -41,6 +43,21 @@
 #define BSP_SDIO_WP    -1
 #define BSP_SDIO_WIDTH 4
 #define BSP_SDIO_FLAGS 0
+
+#define BSP_SDCARD_CLK   43
+#define BSP_SDCARD_CMD   44
+#define BSP_SDCARD_D0    39
+#define BSP_SDCARD_D1    40
+#define BSP_SDCARD_D2    41
+#define BSP_SDCARD_D3    42
+#define BSP_SDCARD_D4    -1
+#define BSP_SDCARD_D5    -1
+#define BSP_SDCARD_D6    -1
+#define BSP_SDCARD_D7    -1
+#define BSP_SDCARD_CD    -1
+#define BSP_SDCARD_WP    -1
+#define BSP_SDCARD_WIDTH 4
+#define BSP_SDCARD_FLAGS 0
 
 /* ==== Mipi DSI parameters ==== */
 #define BSP_DSI_DPI_CLK_MHZ    30

@@ -102,9 +102,11 @@ typedef struct {
 } st7701_panel_t;
 
 static esp_err_t bsp_disp_st7701_new(
-    esp_lcd_panel_io_handle_t const   io,
-    esp_lcd_panel_dev_config_t const *panel_dev_config,
-    esp_lcd_panel_handle_t           *ret_panel
+    esp_lcd_panel_io_handle_t         io,
+    esp_lcd_panel_dev_config_t       *panel_dev_config,
+    esp_lcd_panel_handle_t           *ret_panel,
+    esp_lcd_dsi_bus_handle_t          dsi_bus,
+    esp_lcd_dpi_panel_config_t const *dpi_config
 ) {
     esp_err_t ret = ESP_OK;
     ESP_RETURN_ON_FALSE(io && panel_dev_config && ret_panel, ESP_ERR_INVALID_ARG, TAG, "invalid argument");
@@ -254,7 +256,7 @@ static esp_err_t bsp_st7701_set_gap(esp_lcd_panel_t *panel, int x_gap, int y_gap
 }
 
 static esp_err_t bsp_st7701_disp_on_off(esp_lcd_panel_t *panel, bool on_off) {
-    ESP_LOGI(TAG, "Display %s\n", on_off ? "on" : "off");
+    ESP_LOGI(TAG, "Display %s", on_off ? "on" : "off");
     st7701_panel_t           *st7701  = __containerof(panel, st7701_panel_t, base);
     esp_lcd_panel_io_handle_t io      = st7701->io;
     int                       command = 0;
@@ -269,7 +271,7 @@ static esp_err_t bsp_st7701_disp_on_off(esp_lcd_panel_t *panel, bool on_off) {
 }
 
 static esp_err_t bsp_st7701_sleep(esp_lcd_panel_t *panel, bool sleep) {
-    ESP_LOGI(TAG, "Display %s\n", sleep ? "wakeup" : "sleep");
+    ESP_LOGI(TAG, "Display %s", sleep ? "wakeup" : "sleep");
     st7701_panel_t           *st7701  = __containerof(panel, st7701_panel_t, base);
     esp_lcd_panel_io_handle_t io      = st7701->io;
     int                       command = 0;

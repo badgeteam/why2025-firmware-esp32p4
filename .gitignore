@@ -1,6 +1,6 @@
 build/
 tags
-main/build
+main/kbelf_lib.c
 sdkconfig.old
 *.bak
 *.old
@@ -10,5 +10,9 @@ tools/__pycache__
 esp-idf
 esp-idf-tools
 dependencies.lock
+managed_components
 .IDF_PATH
 .IDF_TOOLS_PATH
+badgesdk
+shell.nix
+sdkconfig

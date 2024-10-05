@@ -1,11 +1,16 @@
 
 // SPDX-License-Identifier: MIT
 
+#include "main.h"
+
+#include "appfs.h"
+#include "arrays.h"
 #include "bsp.h"
 #include "bsp/why2025_coproc.h"
 #include "bsp_device.h"
+#include "bsp_pax.h"
 #include "ch32v203prog.h"
-#include "hardware/why2025.h"
+#include "menus/root.h"
 #include "pax_gfx.h"
 #include "pax_gui.h"
 
@@ -19,136 +24,247 @@
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <sys/stat.h>
+
+char const TAG[] = "main";
+
+#define MAX_MENU_DEPTH 16
 
 
 
-void display_version() {
-    esp_app_desc_t const *app_description = esp_app_get_description();
-    printf("BADGE.TEAM %s launcher firmware v%s\n", app_description->project_name, app_description->version);
-}
+extern uint8_t const ch32_firmware_start[] asm("_binary_ch32_firmware_bin_start");
+extern uint8_t const ch32_firmware_end[] asm("_binary_ch32_firmware_bin_end");
 
-bsp_input_devtree_t const input_tree = {
-    .common = {
-        .type = BSP_EP_INPUT_WHY2025_CH32,
-    },
-    .category           = BSP_INPUT_CAT_KEYBOARD,
-    .keymap             = &bsp_keymap_why2025,
-    .backlight_endpoint = 0,
-    .backlight_index    = 1,
-};
-bsp_input_devtree_t const input2_tree = {
-    .common   = {
-        .type = BSP_EP_INPUT_GPIO,
-    },
-    .category = BSP_INPUT_CAT_GENERIC,
-    .pinmap   = &(bsp_pinmap_t const) {
-        .pins_len  = 1,
-        .pins      = (uint8_t const[]) {35},
-        .activelow = false,
-    },
-};
-bsp_led_devtree_t const led_tree = {
-    .common   = {
-        .type = BSP_EP_LED_WHY2025_CH32,
-    },
-    .num_leds = 2,
-    .ledfmt   = {
-        .color = BSP_PIXFMT_16_GREY,
+// Current GUI root element.
+static pgui_elem_t *gui;
+// GUI top bar.
+static pgui_elem_t *top_bar;
+// GUI bottom bar.
+static pgui_elem_t *bottom_bar;
+// Global framebuffer.
+static pax_buf_t   *gfx;
+// Top-level menu screen GUI root element.
+static menu_entry_t root_menu;
+// Menu stack.
+static menu_entry_t menu_stack[MAX_MENU_DEPTH];
+// Number of menus on the stack.
+static size_t       menu_stack_len;
+// Previsous value of `menu_stack_len`; used to clean up.
+static size_t       menu_stack_prev;
+// Need to update active menu.
+static bool         menu_change = true;
+
+
+
+// Set current screen.
+static void menu_enable(menu_entry_t menu) {
+    if (menu.hide_top) {
+        pgui_enable_flags(top_bar, PGUI_FLAG_HIDDEN);
+    } else {
+        pgui_disable_flags(top_bar, PGUI_FLAG_HIDDEN);
     }
-};
-bsp_display_devtree_t const disp_tree = {
-    .common = {
-        .type      = BSP_EP_DISP_ST7701,
-        .reset_pin = 0,
-    },
-    .pixfmt = {BSP_PIXFMT_16_565RGB, false},
-    .h_fp   = BSP_DSI_LCD_HFP,
-    .width  = BSP_DSI_LCD_H_RES,
-    .h_bp   = BSP_DSI_LCD_HBP,
-    .h_sync = BSP_DSI_LCD_HSYNC,
-    .v_fp   = BSP_DSI_LCD_VFP,
-    .height = BSP_DSI_LCD_V_RES,
-    .v_bp   = BSP_DSI_LCD_VBP,
-    .v_sync = BSP_DSI_LCD_VSYNC,
-    .backlight_endpoint = 0,
-    .backlight_index    = 0,
-};
-bsp_devtree_t const tree = {
-    .input_count = 2,
-    .input_dev = (bsp_input_devtree_t const *const[]) {
-        &input_tree,
-        &input2_tree,
-    },
-    .led_count = 1,
-    .led_dev = (bsp_led_devtree_t const *const[]){
-        &led_tree,
-    },
-    .disp_count = 1,
-    .disp_dev   = (bsp_display_devtree_t const *const[]) {
-        &disp_tree,
-    },
-};
-
-pgui_grid_t gui = PGUI_NEW_GRID(
-    10,
-    10,
-    216,
-    100,
-    2,
-    3,
-
-    &PGUI_NEW_LABEL("Row 1"),
-    &PGUI_NEW_TEXTBOX(),
-
-    &PGUI_NEW_LABEL("Row 2"),
-    &PGUI_NEW_BUTTON("Hello,"),
-
-    &PGUI_NEW_LABEL("Row 2"),
-    &PGUI_NEW_BUTTON("World!")
-);
-
-extern void rvswd_test();
-
-pax_buf_t gfx;
-void      draw_text(char const *text) {
-    pax_background(&gfx, 0);
-    pax_center_text(&gfx, 0xff000000, pax_font_saira_condensed, pax_font_saira_condensed->default_size, 400, 240, text);
+    if (menu.bottom_text) {
+        pgui_set_text(bottom_bar, menu.bottom_text);
+        pgui_disable_flags(bottom_bar, PGUI_FLAG_HIDDEN);
+    } else {
+        pgui_enable_flags(bottom_bar, PGUI_FLAG_HIDDEN);
+    }
+    pgui_enable_flags(menu.root, PGUI_FLAG_TOPLEVEL);
+    pgui_child_replace(gui, 1, menu.root);
+    pgui_set_selection(gui, 1);
 }
+
+// Set the top-level menu screen.
+void menu_set_root(menu_entry_t root) {
+    root_menu = root;
+}
+
+// Enter new menu screen.
+void menu_push(menu_entry_t menu) {
+    if (menu_stack_len >= MAX_MENU_DEPTH) {
+        ESP_LOGE(TAG, "Menu stack is full! Please increase MAX_MENU_DEPTH.");
+        return;
+    }
+    menu_stack[menu_stack_len++] = menu;
+    menu_change                  = true;
+}
+
+// Exit current menu screen.
+void menu_pop() {
+    if (menu_stack_len) {
+        menu_stack_len--;
+        menu_change = true;
+    }
+}
+
+
 
 void app_main(void) {
-    display_version();
+    esp_err_t res;
+    bsp_preinit();
+
+#if CONFIG_BSP_SUPPORT_WHY2025_COPROC
+    // Read CH32 version.
+    uint16_t version = 0xffff;
+    res              = bsp_ch32_version(&version);
+    if (res) {
+        ESP_LOGW(TAG, "Unable to read CH32 version");
+    } else if (version != BSP_CH32_VERSION) {
+        ESP_LOGI(
+            TAG,
+            "CH32 version 0x%04" PRIx16 " too %s (expected %04" PRIx16 ")",
+            version,
+            version < BSP_CH32_VERSION ? "old" : "new",
+            BSP_CH32_VERSION
+        );
+    } else {
+        ESP_LOGI(TAG, "CH32 version 0x%04" PRIx16, version);
+    }
+
+    // Program the CH32 if there is a mismatch.
+    if (res || version != BSP_CH32_VERSION) {
+        ESP_LOGI(TAG, "Programming CH32");
+        rvswd_handle_t handle = {
+            .swdio = 22,
+            .swclk = 23,
+        };
+        ch32_program(&handle, ch32_firmware_start, ch32_firmware_end - ch32_firmware_start);
+        esp_restart();
+    }
+#endif
+
+    // Initialize the hardware.
     bsp_init();
+    gfx = bsp_pax_buf_from_ep(1, 0);
+    if (!gfx) {
+        ESP_LOGE(TAG, "Failed to create framebuffer");
+        esp_restart();
+    }
 
-    pax_buf_init(&gfx, NULL, BSP_DSI_LCD_H_RES, BSP_DSI_LCD_V_RES, PAX_BUF_16_565RGB);
-    pax_buf_set_orientation(&gfx, PAX_O_ROT_CW);
-    pax_background(&gfx, 0);
-    pax_buf_reversed(&gfx, false);
+    // if (mkdir("/int/apps", 0777)) {
+    //     ESP_LOGE(TAG, "No /int/apps :c");
+    //     return;
+    // }
+    // if (mkdir("/int/apps/app_ok", 0777)) {
+    //     ESP_LOGE(TAG, "No /int/apps/app_ok :c");
+    //     return;
+    // }
+    // FILE *fd = fopen("/int/apps/app_ok/meta.json", "w");
+    // if (!fd) {
+    //     ESP_LOGE(TAG, "No FD :c");
+    //     return;
+    // }
+    // fputs(
+    //     "{\n    \"type\": \"AppFS2\",\n    \"name\": \"Test application\",\n    \"desc\": \"This is a simple "
+    //     "metadata entry for testing the application loader\",\n    \"main\": \"/appfs/test\",\n    \"icon\":""
+    //     "\"icon.png\"\n}", fd
+    // );
+    // fclose(fd);
+    // return;
 
-    uint32_t dev_id = bsp_dev_register(&tree);
-    bsp_disp_backlight(dev_id, 0, 65535);
+    // Initialize AppFS so the app launcher can use it.
+    appfsInit(APPFS_PART_TYPE, APPFS_PART_SUBTYPE);
 
-    rvswd_test();
-    bsp_disp_backlight(dev_id, 0, 65535);
+    // Compose top-level GUI.
+    gui = pgui_new_grid2(1, 3);
+    pgui_enable_flags(
+        gui,
+        PGUI_FLAG_NOPADDING | PGUI_FLAG_NOBORDER | PGUI_FLAG_NOSEPARATOR | PGUI_FLAG_FIX_WIDTH | PGUI_FLAG_FIX_HEIGHT
+    );
+    pgui_set_size(gui, pax_buf_get_dims(gfx));
+    pgui_set_row_growable(gui, 0, false);
+    pgui_set_row_growable(gui, 2, false);
+    {
+        // Create top bar.
+        top_bar = pgui_new_grid2(2, 1);
+        pgui_set_variant(top_bar, PGUI_VARIANT_PANEL);
+        pgui_enable_flags(top_bar, PGUI_FLAG_NOBORDER | PGUI_FLAG_NOSEPARATOR | PGUI_FLAG_NOROUNDING);
+        pgui_child_replace(gui, 0, top_bar);
+        {
+            // Misc decor.
+            pgui_elem_t *top_left = pgui_new_text("13:37");
+            pgui_set_variant(top_left, PGUI_VARIANT_PANEL);
+            pgui_set_halign(top_left, PAX_ALIGN_BEGIN);
+            pgui_child_replace(top_bar, 0, top_left);
 
-    pgui_calc_layout(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL);
-    pax_background(&gfx, pgui_theme_default.bg_col);
-    pgui_draw(&gfx, (pgui_elem_t *)&gui, NULL);
-    bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
+            pgui_elem_t *top_right = pgui_new_text("42%");
+            pgui_set_variant(top_right, PGUI_VARIANT_PANEL);
+            pgui_set_halign(top_right, PAX_ALIGN_END);
+            pgui_child_replace(top_bar, 1, top_right);
+        }
 
+        // Create bottom bar.
+        bottom_bar = pgui_new_text(NULL);
+        pgui_enable_flags(bottom_bar, PGUI_FLAG_NOROUNDING);
+        pgui_disable_flags(bottom_bar, PGUI_FLAG_NOBACKGROUND);
+        pgui_set_variant(bottom_bar, PGUI_VARIANT_PANEL);
+        pgui_set_halign(bottom_bar, PAX_ALIGN_BEGIN);
+        pgui_child_replace(gui, 2, bottom_bar);
+    }
+
+    // Set up the menu screens.
+    menu_root_init();
+    menu_enable(root_menu);
+    bsp_disp_backlight(1, 0, 255);
+    bsp_input_backlight(1, 0, 127);
+
+    bool needs_draw   = true;
+    bool needs_redraw = false;
     while (true) {
         bsp_event_t event;
-        if (bsp_event_wait(&event, UINT64_MAX)) {
+        if (menu_change) {
+            while (menu_stack_prev > menu_stack_len) {
+                menu_stack_prev--;
+                if (menu_stack[menu_stack_prev].on_close) {
+                    menu_stack[menu_stack_prev].on_close(menu_stack[menu_stack_prev].on_close_cookie);
+                }
+            }
+            menu_stack_prev = menu_stack_len;
+            menu_enable(menu_stack_len ? menu_stack[menu_stack_len - 1] : root_menu);
+            needs_draw = true;
+            pgui_calc_layout(pax_buf_get_dims(gfx), gui, NULL);
+        }
+
+        if (needs_draw) {
+            // Full re-draw required.
+            pax_background(gfx, pgui_get_default_theme()->palette[PGUI_VARIANT_DEFAULT].bg_col);
+            pgui_draw(gfx, gui, NULL);
+            ESP_LOGI(TAG, "Pre update");
+            bsp_disp_update(1, 0, pax_buf_get_pixels(gfx));
+            ESP_LOGI(TAG, "Post update");
+            needs_draw   = false;
+            needs_redraw = false;
+
+        } else if (needs_redraw) {
+            // Partial re-draw required.
+            pgui_redraw(gfx, gui, NULL);
+            bsp_disp_update(1, 0, pax_buf_get_pixels(gfx));
+            needs_redraw = false;
+        }
+
+        // Run all pending events.
+        uint64_t timeout = UINT64_MAX;
+        while (bsp_event_wait(&event, timeout)) {
+            // Convert BSP event to PGUI event.
             pgui_event_t p_event = {
                 .type    = event.input.type,
                 .input   = event.input.nav_input,
                 .value   = event.input.text_input,
                 .modkeys = event.input.modkeys,
             };
-            pgui_resp_t resp = pgui_event(pax_buf_get_dims(&gfx), (pgui_elem_t *)&gui, NULL, p_event);
+            // Run event through GUI.
+            pgui_resp_t resp = pgui_event(pax_buf_get_dims(gfx), gui, NULL, p_event);
             if (resp) {
-                pgui_redraw(&gfx, (pgui_elem_t *)&gui, NULL);
-                bsp_disp_update(dev_id, 0, pax_buf_get_pixels(&gfx));
+                // Mark as dirty.
+                if (resp == PGUI_RESP_CAPTURED_DIRTY) {
+                    needs_draw = true;
+                }
+                needs_redraw = true;
+            } else if (p_event.input == PGUI_INPUT_BACK && p_event.type == PGUI_EVENT_TYPE_PRESS) {
+                // Exit current screen and go back one level.
+                menu_pop();
             }
+            timeout = 0;
         }
     }
 }
