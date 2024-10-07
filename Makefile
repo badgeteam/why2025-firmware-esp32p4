@@ -31,7 +31,7 @@ submodules:
 	git submodule update --init --recursive
 
 .PHONY: sdk
-sdk:
+sdk: main/kbelf_lib.c
 	rm -rf "$(IDF_PATH)"
 	rm -rf "$(IDF_TOOLS_PATH)"
 	git clone --recursive --branch "$(IDF_BRANCH)" https://github.com/espressif/esp-idf.git "$(IDF_PATH)" --depth=1 --shallow-submodules
