@@ -187,15 +187,13 @@ static void bsp_mount_fatfs() {
 
 // Platform-specific BSP init code.
 void bsp_platform_init() {
-    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_control(true, true));
-
     // Try to mount SDcard.
     bsp_mount_sdcard();
 
     // Enable C6.
-    ESP_ERROR_CHECK_WITHOUT_ABORT(sdmmc_host_init());
-    ESP_ERROR_CHECK_WITHOUT_ABORT(sdmmc_host_init_slot(SDMMC_HOST_SLOT_1, &why2025_sdio_config));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_init());
+    //ESP_ERROR_CHECK_WITHOUT_ABORT(sdmmc_host_init());
+    //ESP_ERROR_CHECK_WITHOUT_ABORT(sdmmc_host_init_slot(SDMMC_HOST_SLOT_1, &why2025_sdio_config));
+    //ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_init());
 
     // Try to mount internal FAT filesystem.
     bsp_mount_fatfs();

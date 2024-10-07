@@ -13,6 +13,14 @@
 #include "menus/root.h"
 #include "pax_gfx.h"
 #include "pax_gui.h"
+/*
+#include "driver/isp.h"
+#include "esp_cam_ctlr_csi.h"
+#include "esp_cam_ctlr.h"
+#include "esp_cache.h"
+#include "driver/i2c_master.h"
+#include "example_sensor_init.h"
+*/
 
 #include <stdio.h>
 
@@ -139,6 +147,14 @@ void app_main(void) {
         esp_restart();
     }
 
+    pax_background(gfx, 0xFFFFFF00);
+    bsp_disp_update(1, 0, pax_buf_get_pixels(gfx));
+
+    /*ESP_LOGW("BSP", "Waiting...");
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    ESP_LOGW("BSP", "Enable C6...");
+    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_control(true, true));*/
+
     // if (mkdir("/int/apps", 0777)) {
     //     ESP_LOGE(TAG, "No /int/apps :c");
     //     return;
@@ -205,6 +221,7 @@ void app_main(void) {
     menu_root_init();
     menu_enable(root_menu);
     bsp_disp_backlight(1, 0, 65535);
+    bsp_input_backlight(1, 0, 65535);
 
     bool needs_draw   = true;
     bool needs_redraw = false;
@@ -241,26 +258,153 @@ void app_main(void) {
         // Run all pending events.
         uint64_t timeout = UINT64_MAX;
         while (bsp_event_wait(&event, timeout)) {
-            // Convert BSP event to PGUI event.
-            pgui_event_t p_event = {
-                .type    = event.input.type,
-                .input   = event.input.nav_input,
-                .value   = event.input.text_input,
-                .modkeys = event.input.modkeys,
-            };
-            // Run event through GUI.
-            pgui_resp_t resp = pgui_event(pax_buf_get_dims(gfx), gui, NULL, p_event);
-            if (resp) {
-                // Mark as dirty.
-                if (resp == PGUI_RESP_CAPTURED_DIRTY) {
-                    needs_draw = true;
+            if (event.type == BSP_EVENT_INPUT) {
+
+                if (event.input.type == BSP_INPUT_EVENT_PRESS) {
+                    if (event.input.input == 0) {
+                        ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_control(false, true));
+                    }
+                    if (event.input.input == 262) {
+                        ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_c6_control(true, true));
+                    }
                 }
-                needs_redraw = true;
-            } else if (p_event.input == PGUI_INPUT_BACK && p_event.type == PGUI_EVENT_TYPE_PRESS) {
-                // Exit current screen and go back one level.
-                menu_pop();
+
+                // Convert BSP event to PGUI event.
+                pgui_event_t p_event = {
+                    .type    = event.input.type,
+                    .input   = event.input.nav_input,
+                    .value   = event.input.text_input,
+                    .modkeys = event.input.modkeys,
+                };
+                // Run event through GUI.
+                pgui_resp_t resp = pgui_event(pax_buf_get_dims(gfx), gui, NULL, p_event);
+                if (resp) {
+                    // Mark as dirty.
+                    if (resp == PGUI_RESP_CAPTURED_DIRTY) {
+                        needs_draw = true;
+                    }
+                    needs_redraw = true;
+                } else if (p_event.input == PGUI_INPUT_BACK && p_event.type == PGUI_EVENT_TYPE_PRESS) {
+                    // Exit current screen and go back one level.
+                    menu_pop();
+                }
             }
             timeout = 0;
         }
     }
 }
+
+// Camera stuff
+/*
+static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
+static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
+
+void camera_main(void* frame_buffer, size_t frame_buffer_size)
+{
+    esp_err_t ret = ESP_FAIL;
+
+    gpio_config_t dp_config = {
+        .pin_bit_mask = BIT64(1),
+        .mode         = GPIO_MODE_OUTPUT,
+        .pull_up_en   = true,
+        .pull_down_en = false,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    ret = gpio_config(&dp_config);
+    if (ret != ESP_OK) {
+        return;
+    }
+
+    gpio_set_level(1, true);
+
+    esp_cam_ctlr_trans_t new_trans = {
+        .buffer = frame_buffer,
+        .buflen = frame_buffer_size,
+    };
+
+    //--------Camera Sensor and SCCB Init-----------//
+    i2c_master_bus_handle_t i2c_bus_handle = NULL;
+    example_sensor_init(I2C_NUM_0, &i2c_bus_handle);
+
+    //---------------CSI Init------------------//
+    esp_cam_ctlr_csi_config_t csi_config = {
+        .ctlr_id = 0,
+        .h_res = 800,
+        .v_res = 480,
+        .lane_bit_rate_mbps = EXAMPLE_MIPI_CSI_LANE_BITRATE_MBPS,
+        .input_data_color_type = CAM_CTLR_COLOR_RAW8,
+        .output_data_color_type = CAM_CTLR_COLOR_RGB565,
+        .data_lane_num = 2,
+        .byte_swap_en = false,
+        .queue_items = 1,
+    };
+    esp_cam_ctlr_handle_t cam_handle = NULL;
+    ret = esp_cam_new_csi_ctlr(&csi_config, &cam_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "csi init fail[%d]", ret);
+        return;
+    }
+
+    esp_cam_ctlr_evt_cbs_t cbs = {
+        .on_get_new_trans = s_camera_get_new_vb,
+        .on_trans_finished = s_camera_get_finished_trans,
+    };
+    if (esp_cam_ctlr_register_event_callbacks(cam_handle, &cbs, &new_trans) != ESP_OK) {
+        ESP_LOGE(TAG, "ops register fail");
+        return;
+    }
+
+    ESP_ERROR_CHECK(esp_cam_ctlr_enable(cam_handle));
+
+    //---------------ISP Init------------------//
+    isp_proc_handle_t isp_proc = NULL;
+    esp_isp_processor_cfg_t isp_config = {
+        .clk_hz = 80 * 1000 * 1000,
+        .input_data_source = ISP_INPUT_DATA_SOURCE_CSI,
+        .input_data_color_type = ISP_COLOR_RAW8,
+        .output_data_color_type = ISP_COLOR_RGB565,
+        .has_line_start_packet = false,
+        .has_line_end_packet = false,
+        .h_res = 800,
+        .v_res = 480,
+    };
+    ESP_ERROR_CHECK(esp_isp_new_processor(&isp_config, &isp_proc));
+    ESP_ERROR_CHECK(esp_isp_enable(isp_proc));
+
+    //---------------DPI Reset------------------//
+
+    //init to all white
+    memset(frame_buffer, 0xFF, frame_buffer_size);
+    esp_cache_msync((void *)frame_buffer, frame_buffer_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+
+    if (esp_cam_ctlr_start(cam_handle) != ESP_OK) {
+        ESP_LOGE(TAG, "Driver start fail");
+        return;
+    }
+
+    while (1) {
+        ESP_ERROR_CHECK(esp_cam_ctlr_receive(cam_handle, &new_trans, ESP_CAM_CTLR_MAX_DELAY));
+        bsp_disp_update(1, 0, frame_buffer);
+    }
+}
+
+static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data)
+{
+    esp_cam_ctlr_trans_t new_trans = *(esp_cam_ctlr_trans_t *)user_data;
+    trans->buffer = new_trans.buffer;
+    trans->buflen = new_trans.buflen;
+
+    return false;
+}
+
+static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data)
+{
+    return false;
+}*/
+
+void camera_test_open(void) {
+    return;
+    //void* frame_buffer = malloc(800*480*2);
+    //camera_main(frame_buffer, sizeof(frame_buffer));
+}
+
