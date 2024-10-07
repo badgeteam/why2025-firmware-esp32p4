@@ -6,7 +6,7 @@
 #include "bsp.h"
 
 #include <driver/gpio.h>
-#include <driver/i2c.h>
+#include "driver/i2c_master.h"
 #include <driver/sdmmc_host.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
@@ -27,7 +27,7 @@ static uint32_t          ch32_input_dev_ep;
 static sdmmc_card_t      c6_card;
 static uint8_t           c6_cis_buf[256];
 static sdmmc_host_t      sdmmc_host = SDMMC_HOST_DEFAULT();
-
+static i2c_master_dev_handle_t dev_handle;
 
 
 /* ==== platform-specific functions ==== */
@@ -37,25 +37,28 @@ esp_err_t bsp_ch32_version(uint16_t *ver) {
     if (!why2025_enable_i2cint)
         return ESP_ERR_TIMEOUT;
     xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
-    esp_err_t res = i2c_master_write_read_device(
-        BSP_I2CINT_NUM,
-        BSP_CH32_ADDR,
-        (uint8_t const[]){0x00},
-        1,
-        (void *)ver,
-        2,
-        pdMS_TO_TICKS(100)
-    );
+    esp_err_t res = i2c_master_transmit_receive(dev_handle, (uint8_t[]){0}, 1, (void*)(ver), 2, 100);
     xSemaphoreGive(ch32_semaphore);
     return res;
 }
 
 // Initialise the co-processor drivers.
-esp_err_t bsp_why2025_coproc_init() {
-    // Initialise the CH32V203 driver.
+esp_err_t bsp_why2025_coproc_init(i2c_master_bus_handle_t i2c_bus_handle) {
+    i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = BSP_CH32_ADDR,
+        .scl_speed_hz = 100000,
+    };
+
+    esp_err_t res = i2c_master_bus_add_device(i2c_bus_handle, &dev_cfg, &dev_handle);
+    if (res != ESP_OK) {
+        return res;
+    }
+
     ch32_int_semaphore = xSemaphoreCreateBinary();
     ch32_semaphore     = xSemaphoreCreateBinary();
     xSemaphoreGive(ch32_semaphore);
+
     if (ch32_int_semaphore == NULL || ch32_semaphore == NULL) {
         return ESP_ERR_NO_MEM;
     }
@@ -63,19 +66,19 @@ esp_err_t bsp_why2025_coproc_init() {
         return ESP_ERR_NO_MEM;
     }
 
-    esp_err_t res = gpio_isr_handler_add(BSP_CH32_IRQ_PIN, ch32_isr, NULL);
+    res = gpio_isr_handler_add(BSP_CH32_IRQ_PIN, ch32_isr, NULL);
     if (res != ESP_OK) {
         return res;
     }
 
-    gpio_config_t sao_cfg = {
+    gpio_config_t irq_cfg = {
         .pin_bit_mask = BIT64(BSP_CH32_IRQ_PIN),
         .mode         = GPIO_MODE_INPUT,
         .pull_up_en   = false,
         .pull_down_en = false,
         .intr_type    = GPIO_INTR_NEGEDGE,
     };
-    res = gpio_config(&sao_cfg);
+    res = gpio_config(&irq_cfg);
     if (res != ESP_OK) {
         return res;
     }
@@ -100,15 +103,7 @@ static void ch32_thread() {
 
         // When an interrupt occurs, read buttons from I²C.
         xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
-        esp_err_t res = i2c_master_write_read_device(
-            BSP_I2CINT_NUM,
-            BSP_CH32_ADDR,
-            (uint8_t[]){2}, // I2C_REG_KEYBOARD_0
-            1,
-            buttons,
-            9,
-            pdMS_TO_TICKS(50)
-        );
+        esp_err_t res = i2c_master_transmit_receive(dev_handle, (uint8_t[]){2}, 1, buttons, 9, 500);
 
         if (res != ESP_OK) {
             xSemaphoreGive(ch32_semaphore);
@@ -116,15 +111,7 @@ static void ch32_thread() {
         }
 
         // Read input status
-        res = i2c_master_write_read_device(
-            BSP_I2CINT_NUM,
-            BSP_CH32_ADDR,
-            (uint8_t[]){15}, // I2C_REG_INPUT
-            1,
-            &inputs,
-            1,
-            pdMS_TO_TICKS(50)
-        );
+        res = i2c_master_transmit_receive(dev_handle, (uint8_t[]){15}, 1, &inputs, 1, 500);
 
         xSemaphoreGive(ch32_semaphore);
         if (res != ESP_OK) {
@@ -172,8 +159,7 @@ esp_err_t ch32_set_display_backlight(uint16_t value) {
     buffer[0] = 11; // I2C_REG_DISPLAY_BACKLIGHT_0
     buffer[1] = value & 0xFF;
     buffer[2] = value >> 8;
-    esp_err_t res
-        = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), pdMS_TO_TICKS(100));
+    esp_err_t res = i2c_master_transmit(dev_handle, buffer, sizeof(buffer), 100);
     xSemaphoreGive(ch32_semaphore);
     return res;
 }
@@ -185,8 +171,7 @@ esp_err_t ch32_set_keyboard_backlight(uint16_t value) {
     buffer[0] = 13; // I2C_REG_KEYBOARD_BACKLIGHT_0
     buffer[1] = value & 0xFF;
     buffer[2] = value >> 8;
-    esp_err_t res
-        = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), pdMS_TO_TICKS(100));
+    esp_err_t res = i2c_master_transmit(dev_handle, buffer, sizeof(buffer), 100);
     xSemaphoreGive(ch32_semaphore);
     return res;
 }
@@ -195,16 +180,7 @@ esp_err_t ch32_set_keyboard_backlight(uint16_t value) {
 esp_err_t ch32_get_display_backlight(uint16_t *value) {
     if (!value)
         return ESP_OK;
-    xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
-    esp_err_t res = i2c_master_write_read_device(
-        BSP_I2CINT_NUM,
-        BSP_CH32_ADDR,
-        (uint8_t const[]){11}, // I2C_REG_DISPLAY_BACKLIGHT_0
-        1,
-        (void *)value,
-        2,
-        pdMS_TO_TICKS(100)
-    );
+    esp_err_t res = i2c_master_transmit_receive(dev_handle, (uint8_t[]){13}, 1, (void*)(value), 2, 100); // I2C_REG_DISPLAY_BACKLIGHT_0
     xSemaphoreGive(ch32_semaphore);
     return res;
 }
@@ -214,26 +190,19 @@ esp_err_t ch32_get_keyboard_backlight(uint16_t *value) {
     if (!value)
         return ESP_OK;
     xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
-    esp_err_t res = i2c_master_write_read_device(
-        BSP_I2CINT_NUM,
-        BSP_CH32_ADDR,
-        (uint8_t const[]){13}, // I2C_REG_KEYBOARD_BACKLIGHT_0
-        1,
-        (void *)value,
-        2,
-        pdMS_TO_TICKS(100)
-    );
+    esp_err_t res = i2c_master_transmit_receive(dev_handle, (uint8_t[]){13}, 1, (void*)(value), 2, 100);
     xSemaphoreGive(ch32_semaphore);
     return res;
 }
 
-// Enable/disable the audio amplifier.
-esp_err_t bsp_amplifier_control(bool enable) {
+// Enable/disable the audio amplifier and camera.
+esp_err_t bsp_output_control(bool amplifier, bool camera) {
     xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
     uint8_t buffer[2];
     buffer[0]     = 16; // I2C_REG_AMPLIFIER_ENABLE
-    buffer[1]     = enable ? 1 : 0;
-    esp_err_t res = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    buffer[1]     = (amplifier ? 1 : 0);
+    buffer[1]    |= (camera ? 1 : 0) << 1;
+    esp_err_t res = i2c_master_transmit(dev_handle, buffer, sizeof(buffer), 100);
     xSemaphoreGive(ch32_semaphore);
     return res;
 }
@@ -244,7 +213,7 @@ esp_err_t bsp_c6_control(bool enable, bool boot) {
     uint8_t buffer[2];
     buffer[0]     = 17; // I2C_REG_RADIO_CONTROL
     buffer[1]     = (enable & 1) | ((boot & 1) << 1);
-    esp_err_t res = i2c_master_write_to_device(BSP_I2CINT_NUM, BSP_CH32_ADDR, buffer, sizeof(buffer), portMAX_DELAY);
+    esp_err_t res = i2c_master_transmit(dev_handle, buffer, sizeof(buffer), 100);
     xSemaphoreGive(ch32_semaphore);
     return res;
 }
@@ -291,15 +260,7 @@ bool bsp_input_why2025ch32_get_raw(bsp_device_t *dev, uint8_t endpoint, uint16_t
 
     // Read buttons from I²C.
     xSemaphoreTake(ch32_semaphore, portMAX_DELAY);
-    i2c_master_write_read_device(
-        BSP_I2CINT_NUM,
-        BSP_CH32_ADDR,
-        (uint8_t[]){2 + raw_input / 8}, // I2C_REG_KEYBOARD_0
-        1,
-        &buttons,
-        1,
-        pdMS_TO_TICKS(50)
-    );
+    i2c_master_transmit_receive(dev_handle, (uint8_t[]){2 + raw_input / 8}, 1, &buttons, 1, 100);
     xSemaphoreGive(ch32_semaphore);
 
     return (buttons >> (raw_input & 7)) & 1;

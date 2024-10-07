@@ -20,7 +20,7 @@ extern bool why2025_enable_i2cint;
 // Get the C6 version.
 esp_err_t bsp_ch32_version(uint16_t *ver);
 // Initialise the co-processor drivers.
-esp_err_t bsp_why2025_coproc_init();
+esp_err_t bsp_why2025_coproc_init(i2c_master_bus_handle_t i2c_bus_handle);
 
 // Set the display backlight value.
 esp_err_t ch32_set_display_backlight(uint16_t value);
@@ -30,8 +30,8 @@ esp_err_t ch32_set_keyboard_backlight(uint16_t value);
 esp_err_t ch32_get_display_backlight(uint16_t *value);
 // Get the keyboard backlight value.
 esp_err_t ch32_get_keyboard_backlight(uint16_t *value);
-// Enable/disable the audio amplifier.
-esp_err_t bsp_amplifier_control(bool enable);
+// Enable/disable the audio amplifier and camera.
+esp_err_t bsp_output_control(bool amplifier, bool camera);
 // Enable/disable the ESP32-C6 via RESET and BOOT pins.
 esp_err_t bsp_c6_control(bool enable, bool boot);
 // Initialize the ESP32-C6 after it was (re-)enabled.

@@ -18,7 +18,7 @@ extern "C" {
  * @param[in]  i2c_port              I2C port
  * @param[out] out_i2c_bus_handle    I2C bus handle
  */
-void example_sensor_init(int i2c_port, i2c_master_bus_handle_t *out_i2c_bus_handle);
+void example_sensor_init(i2c_master_bus_handle_t i2c_bus_handle);
 
 #ifdef __cplusplus
 }

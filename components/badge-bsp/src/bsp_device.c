@@ -61,6 +61,7 @@ static bsp_disp_driver_t const *const disp_tab[] = {
         },
         .update      = bsp_disp_dsi_update,
         .update_part = bsp_disp_dsi_update_part,
+        .get_framebuffer = bsp_disp_dsi_get_framebuffer,
     },
 };
 static size_t const disp_tab_len = sizeof(disp_tab) / sizeof(bsp_disp_driver_t const *);
@@ -587,6 +588,12 @@ void bsp_disp_update(uint32_t dev_id, uint8_t endpoint, void const *framebuffer)
         dev->disp_drivers[endpoint]->update(dev, endpoint, framebuffer);
     }
     rel_shared();
+}
+
+void* bsp_disp_get_fb(uint32_t dev_id, uint8_t endpoint) {
+    ptrdiff_t     idx = bsp_find_device(dev_id);
+    bsp_device_t *dev = devices[idx];
+    return dev->disp_drivers[endpoint]->get_framebuffer(dev, endpoint);
 }
 
 // Send new image data to part of a device's display.

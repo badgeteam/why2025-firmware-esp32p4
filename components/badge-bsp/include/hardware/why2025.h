@@ -3,12 +3,24 @@
 
 #pragma once
 
+#include "driver/i2c_master.h"
+
 // I²C peripheral used for internal I²C bus.
 #define BSP_I2CINT_NUM     0
-// Internal I²C bus SDA pin.
+// Internal I2C bus SDA pin.
 #define BSP_I2CINT_SDA_PIN 9
-// Internal I²C bus SCL pin.
+// Internal I2C bus SCL pin.
 #define BSP_I2CINT_SCL_PIN 10
+
+// SAO I2C bus SDA pin.
+#define BSP_I2CSAO_SDA_PIN 12
+// SAO I2C bus SCL pin.
+#define BSP_I2CSAO_SCL_PIN 13
+
+// EXT I3C bus SDA pin.
+#define BSP_I3CEXT_SDA_PIN 32
+// EXT I3C bus SCL pin.
+#define BSP_I3CEXT_SCL_PIN 33
 
 // Interrupt pin from the CH32V203 to the ESP32P4.
 #define BSP_CH32_IRQ_PIN 6
@@ -62,3 +74,7 @@
 #define BSP_DSI_LDO_CHAN       3
 #define BSP_DSI_LDO_VOLTAGE_MV 2500
 #define BSP_LCD_RESET_PIN      0
+
+i2c_master_bus_handle_t get_i2c_internal_bus_handle();
+i2c_master_bus_handle_t get_i2c_sao_bus_handle();
+i2c_master_bus_handle_t get_i3c_ext_bus_handle();

@@ -20,20 +20,9 @@
 
 static const char *TAG = "sensor_init";
 
-void example_sensor_init(int i2c_port, i2c_master_bus_handle_t *out_i2c_bus_handle)
+void example_sensor_init(i2c_master_bus_handle_t i2c_bus_handle)
 {
     esp_err_t ret = ESP_FAIL;
-
-    //---------------I2C Init------------------//
-    i2c_master_bus_config_t i2c_bus_conf = {
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .sda_io_num = EXAMPLE_CAM_SCCB_SDA_IO,
-        .scl_io_num = EXAMPLE_CAM_SCCB_SCL_IO,
-        .i2c_port = i2c_port,
-        .flags.enable_internal_pullup = true,
-    };
-    i2c_master_bus_handle_t i2c_bus_handle = NULL;
-    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_conf, &i2c_bus_handle));
 
     //---------------SCCB Init------------------//
     esp_sccb_io_handle_t sccb_io_handle = NULL;
@@ -47,6 +36,7 @@ void example_sensor_init(int i2c_port, i2c_master_bus_handle_t *out_i2c_bus_hand
 
     esp_cam_sensor_device_t *cam = NULL;
     for (esp_cam_sensor_detect_fn_t *p = &__esp_cam_sensor_detect_fn_array_start; p < &__esp_cam_sensor_detect_fn_array_end; ++p) {
+        printf("Address %02x\r\n", p->sccb_addr);
         sccb_i2c_config_t i2c_config = {
             .scl_speed_hz = EXAMPLE_CAM_SCCB_FREQ,
             .device_address = p->sccb_addr,
@@ -97,6 +87,4 @@ void example_sensor_init(int i2c_port, i2c_master_bus_handle_t *out_i2c_bus_hand
         ESP_LOGE(TAG, "Start stream fail");
     }
     ESP_ERROR_CHECK(ret);
-
-    *out_i2c_bus_handle = i2c_bus_handle;
 }

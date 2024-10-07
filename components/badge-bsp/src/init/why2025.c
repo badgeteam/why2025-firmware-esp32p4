@@ -5,7 +5,7 @@
 
 #include "bsp/why2025_coproc.h"
 
-#include <driver/i2c.h>
+#include "driver/i2c_master.h"
 #include <driver/sdmmc_host.h>
 #include <esp_log.h>
 #include <esp_vfs_fat.h>
@@ -13,7 +13,9 @@
 
 static char const TAG[] = "why2025";
 
-
+static i2c_master_bus_handle_t i2c_internal_bus_handle = NULL;
+static i2c_master_bus_handle_t i2c_sao_bus_handle = NULL;
+static i2c_master_bus_handle_t i3c_ext_bus_handle = NULL;
 
 static bsp_input_devtree_t const input_tree = {
     .common = {
@@ -147,19 +149,38 @@ void bsp_platform_preinit() {
     // Enable GPIO interrupts.
     ESP_ERROR_CHECK_WITHOUT_ABORT(gpio_install_isr_service(0));
 
-    // Enable internal I²C bus.
-    i2c_config_t i2c_conf = {
-        .mode       = I2C_MODE_MASTER,
-        .master = {
-            .clk_speed = 400000,
-        },
-        .scl_io_num = BSP_I2CINT_SCL_PIN,
+    // Enable internal I2C bus.
+    i2c_master_bus_config_t int_i2c_bus_conf = {
+        .clk_source = I2C_CLK_SRC_DEFAULT,
         .sda_io_num = BSP_I2CINT_SDA_PIN,
+        .scl_io_num = BSP_I2CINT_SCL_PIN,
+        .i2c_port = I2C_NUM_0,
+        .flags.enable_internal_pullup = true,
     };
-    ESP_ERROR_CHECK_WITHOUT_ABORT(i2c_param_config(BSP_I2CINT_NUM, &i2c_conf));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(i2c_driver_install(BSP_I2CINT_NUM, I2C_MODE_MASTER, 0, 0, 0));
+    ESP_ERROR_CHECK(i2c_new_master_bus(&int_i2c_bus_conf, &i2c_internal_bus_handle));
 
-    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_why2025_coproc_init());
+    // Initialize coprocessor
+    ESP_ERROR_CHECK_WITHOUT_ABORT(bsp_why2025_coproc_init(i2c_internal_bus_handle));
+
+    /*// Enable SAO I2C bus.
+    i2c_master_bus_config_t sao_i2c_bus_conf = {
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .sda_io_num = BSP_I2CSAO_SDA_PIN,
+        .scl_io_num = BSP_I2CSAO_SCL_PIN,
+        .i2c_port = I2C_NUM_1,
+        .flags.enable_internal_pullup = true,
+    };
+    ESP_ERROR_CHECK(i2c_new_master_bus(&sao_i2c_bus_conf, &i2c_sao_bus_handle));*/
+
+    // Enable SAO I3C bus.
+    i2c_master_bus_config_t ext_i3c_bus_conf = {
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .sda_io_num = BSP_I3CEXT_SDA_PIN,
+        .scl_io_num = BSP_I3CEXT_SCL_PIN,
+        .i2c_port = I2C_NUM_1,
+        .flags.enable_internal_pullup = true,
+    };
+    ESP_ERROR_CHECK(i2c_new_master_bus(&ext_i3c_bus_conf, &i3c_ext_bus_handle));
 }
 
 // Try to mount SDcard.
@@ -200,4 +221,16 @@ void bsp_platform_init() {
 
     // Register BSP device tree.
     bsp_dev_register(&tree, true);
+}
+
+i2c_master_bus_handle_t get_i2c_internal_bus_handle() {
+    return i2c_internal_bus_handle;
+}
+
+i2c_master_bus_handle_t get_i2c_sao_bus_handle() {
+    return i2c_sao_bus_handle;
+}
+
+i2c_master_bus_handle_t get_i3c_ext_bus_handle() {
+    return i3c_ext_bus_handle;
 }

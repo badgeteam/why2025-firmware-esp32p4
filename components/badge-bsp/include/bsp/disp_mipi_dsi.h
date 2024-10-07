@@ -30,3 +30,4 @@ void bsp_disp_dsi_update(bsp_device_t *dev, uint8_t endpoint, void const *frameb
 void bsp_disp_dsi_update_part(
     bsp_device_t *dev, uint8_t endpoint, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
 );
+void* bsp_disp_dsi_get_framebuffer(bsp_device_t *dev, uint8_t endpoint);

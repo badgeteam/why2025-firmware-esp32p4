@@ -13,14 +13,13 @@
 #include "menus/root.h"
 #include "pax_gfx.h"
 #include "pax_gui.h"
-/*
+
 #include "driver/isp.h"
 #include "esp_cam_ctlr_csi.h"
 #include "esp_cam_ctlr.h"
 #include "esp_cache.h"
 #include "driver/i2c_master.h"
 #include "example_sensor_init.h"
-*/
 
 #include <stdio.h>
 
@@ -33,6 +32,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <sys/stat.h>
+
+#include "bsp/disp_mipi_dsi.h"
+#include "hal/cache_hal.h"
+#include "hal/cache_ll.h"
 
 char const TAG[] = "main";
 
@@ -105,7 +108,30 @@ void menu_pop() {
     }
 }
 
+int i2c_detect(i2c_master_bus_handle_t bus) {
+    uint8_t address;
+    printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\r\n");
+    for (int i = 0; i < 128; i += 16) {
+        printf("%02x: ", i);
+        for (int j = 0; j < 16; j++) {
+            fflush(stdout);
+            address = i + j;
+            esp_err_t ret = i2c_master_probe(bus, address, 20);
+            if (ret == ESP_OK) {
+                printf("%02x ", address);
+            } else if (ret == ESP_ERR_TIMEOUT) {
+                printf("UU ");
+            } else {
+                printf("-- ");
+            }
+        }
+        printf("\r\n");
+    }
 
+    return 0;
+}
+
+void camera_main();
 
 void app_main(void) {
     esp_err_t res;
@@ -223,6 +249,31 @@ void app_main(void) {
     bsp_disp_backlight(1, 0, 65535);
     bsp_input_backlight(1, 0, 65535);
 
+    bsp_output_control(false, true);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    i2c_master_bus_handle_t int_bus = get_i2c_internal_bus_handle();
+    i2c_master_bus_handle_t sao_bus = get_i2c_sao_bus_handle();
+    i2c_master_bus_handle_t ext_bus = get_i3c_ext_bus_handle();
+
+    if (int_bus) {
+        printf("--- INTERNAL ---\r\n");
+        i2c_detect(int_bus);
+        printf("\r\n");
+    }
+
+    if (sao_bus) {
+        printf("--- SAO ---\r\n");
+        i2c_detect(sao_bus);
+        printf("\r\n");
+    }
+
+    if (ext_bus) {
+        printf("--- EXT ---\r\n");
+        i2c_detect(ext_bus);
+        printf("\r\n");
+    }
+
     bool needs_draw   = true;
     bool needs_redraw = false;
     while (true) {
@@ -295,13 +346,15 @@ void app_main(void) {
 }
 
 // Camera stuff
-/*
+
 static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
 
-void camera_main(void* frame_buffer, size_t frame_buffer_size)
+void camera_main()
 {
     esp_err_t ret = ESP_FAIL;
+
+    bsp_output_control(false, true);
 
     gpio_config_t dp_config = {
         .pin_bit_mask = BIT64(1),
@@ -317,20 +370,29 @@ void camera_main(void* frame_buffer, size_t frame_buffer_size)
 
     gpio_set_level(1, true);
 
+    uint32_t cache_line_size = cache_hal_get_cache_line_size(CACHE_LL_LEVEL_EXT_MEM, CACHE_TYPE_DATA);
+    void* frame_buffer = heap_caps_aligned_calloc(cache_line_size, 1, 800*640*2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    //frame_buffer = bsp_disp_get_fb(1, 0);
+    size_t frame_buffer_size = 800*640*2;
+
+    if (frame_buffer == NULL) {
+        ESP_LOGE(TAG, "Out of memory!");
+        return;
+    }
+
     esp_cam_ctlr_trans_t new_trans = {
         .buffer = frame_buffer,
         .buflen = frame_buffer_size,
     };
 
     //--------Camera Sensor and SCCB Init-----------//
-    i2c_master_bus_handle_t i2c_bus_handle = NULL;
-    example_sensor_init(I2C_NUM_0, &i2c_bus_handle);
+    example_sensor_init(get_i2c_internal_bus_handle());
 
     //---------------CSI Init------------------//
     esp_cam_ctlr_csi_config_t csi_config = {
         .ctlr_id = 0,
         .h_res = 800,
-        .v_res = 480,
+        .v_res = 640,
         .lane_bit_rate_mbps = EXAMPLE_MIPI_CSI_LANE_BITRATE_MBPS,
         .input_data_color_type = CAM_CTLR_COLOR_RAW8,
         .output_data_color_type = CAM_CTLR_COLOR_RGB565,
@@ -366,7 +428,7 @@ void camera_main(void* frame_buffer, size_t frame_buffer_size)
         .has_line_start_packet = false,
         .has_line_end_packet = false,
         .h_res = 800,
-        .v_res = 480,
+        .v_res = 640,
     };
     ESP_ERROR_CHECK(esp_isp_new_processor(&isp_config, &isp_proc));
     ESP_ERROR_CHECK(esp_isp_enable(isp_proc));
@@ -374,7 +436,7 @@ void camera_main(void* frame_buffer, size_t frame_buffer_size)
     //---------------DPI Reset------------------//
 
     //init to all white
-    memset(frame_buffer, 0xFF, frame_buffer_size);
+    memset(frame_buffer, 0x33, frame_buffer_size);
     esp_cache_msync((void *)frame_buffer, frame_buffer_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
 
     if (esp_cam_ctlr_start(cam_handle) != ESP_OK) {
@@ -383,7 +445,12 @@ void camera_main(void* frame_buffer, size_t frame_buffer_size)
     }
 
     while (1) {
-        ESP_ERROR_CHECK(esp_cam_ctlr_receive(cam_handle, &new_trans, ESP_CAM_CTLR_MAX_DELAY));
+        printf(".\r\n");
+        esp_err_t res = esp_cam_ctlr_receive(cam_handle, &new_trans, ESP_CAM_CTLR_MAX_DELAY);
+        if (res != ESP_OK) {
+            ESP_LOGE(TAG, "Error in esp_cam_ctlr_receive: %d (%s)", res, esp_err_to_name(res));
+            break;
+        }
         bsp_disp_update(1, 0, frame_buffer);
     }
 }
@@ -393,18 +460,15 @@ static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans
     esp_cam_ctlr_trans_t new_trans = *(esp_cam_ctlr_trans_t *)user_data;
     trans->buffer = new_trans.buffer;
     trans->buflen = new_trans.buflen;
-
     return false;
 }
 
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data)
 {
     return false;
-}*/
+}
 
 void camera_test_open(void) {
-    return;
-    //void* frame_buffer = malloc(800*480*2);
-    //camera_main(frame_buffer, sizeof(frame_buffer));
+    camera_main();
 }
 

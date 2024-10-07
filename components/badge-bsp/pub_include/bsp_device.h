@@ -31,3 +31,5 @@ void bsp_raw_button_released_from_isr(uint32_t dev_id, uint8_t endpoint, int inp
 bsp_devtree_t *bsp_dev_clone_devtree(uint32_t dev_id);
 // Obtain a share of the device tree shared pointer that can be cleaned up with `rc_delete()`.
 rc_t           bsp_dev_get_devtree(uint32_t dev_id);
+
+void* bsp_disp_get_fb(uint32_t dev_id, uint8_t endpoint);

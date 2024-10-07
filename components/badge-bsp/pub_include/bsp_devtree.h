@@ -141,6 +141,8 @@ typedef void (*bsp_disp_update_t)(bsp_device_t *dev, uint8_t endpoint, void cons
 typedef void (*bsp_disp_update_part_t)(
     bsp_device_t *dev, uint8_t endpoint, void const *framebuffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h
 );
+// Get buffer
+typedef void* (*bsp_disp_get_fb_t)(bsp_device_t *dev, uint8_t endpoint);
 
 
 
@@ -316,6 +318,7 @@ struct bsp_disp_driver {
     bsp_disp_update_t      update;
     // Send new image data to part of a device's display.
     bsp_disp_update_part_t update_part;
+    bsp_disp_get_fb_t get_framebuffer;
 };
 
 // Audio driver functions.
