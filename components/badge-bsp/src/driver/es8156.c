@@ -125,6 +125,8 @@ esp_err_t es8156_init() {
     es8156_write_reg(ES8156_RESET_REG00, 0x02);
     es8156_write_reg(ES8156_RESET_REG00, 0x03);
     es8156_write_reg(ES8156_ANALOG_SYS5_REG25, 0x20);
+
+    es8156_write_reg(ES8156_ANALOG_SYS5_REG25, 0x20);// | 0x08 | 0x02 | 0x40);
     return ESP_OK;
 }
 

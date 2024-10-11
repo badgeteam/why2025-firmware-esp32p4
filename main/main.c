@@ -39,16 +39,70 @@ static char const *TAG = "main";
 
 void display_version() {
     esp_app_desc_t const *app_description = esp_app_get_description();
-    printf("BADGE.TEAM %s launcher firmware v%s\n", app_description->project_name, app_description->version);
+    printf("BADGE.TEAM %s demo firmware v%s\n", app_description->project_name, app_description->version);
 }
 
 bool start_demo = false;
 
 i2s_chan_handle_t i2s_handle = NULL;
 
-uint8_t volume = 120;
+uint8_t volume = 100;
 uint8_t screen_brightness = 51;
-uint8_t keyboard_brightness = 51;
+uint8_t keyboard_brightness = 255;
+
+typedef struct _audio_player_cfg {
+    uint8_t* buffer;
+    size_t   size;
+    bool     free_buffer;
+} audio_player_cfg_t;
+
+void audio_player_task(void* arg) {
+    audio_player_cfg_t* config        = (audio_player_cfg_t*) arg;
+    size_t              sample_length = config->size;
+    uint8_t*            sample_buffer = config->buffer;
+
+    size_t count;
+    size_t position = 0;
+
+    while (1) {
+        position = 0;
+        while (position < sample_length) {
+            size_t length = sample_length - position;
+            if (length > 256) length = 256;
+            uint8_t buffer[256];
+            memcpy(buffer, &sample_buffer[position], length);
+            for (size_t l = 0; l < length; l += 2) {
+                int16_t* sample = (int16_t*) &buffer[l];
+                *sample *= 0.55;
+            }
+            i2s_channel_write(i2s_handle, (char const *)buffer, length, &count, portMAX_DELAY);
+            if (count != length) {
+                printf("i2s_write_bytes: count (%d) != length (%d)\n", count, length);
+                abort();
+            }
+            position += length;
+        }
+    }
+
+    //i2s_zero_dma_buffer(0);  // Fill buffer with silence
+    if (config->free_buffer) free(sample_buffer);
+    vTaskDelete(NULL);  // Tell FreeRTOS that the task is done
+}
+
+extern const uint8_t boot_snd_start[] asm("_binary_boot_snd_start");
+extern const uint8_t boot_snd_end[] asm("_binary_boot_snd_end");
+
+audio_player_cfg_t bootsound;
+
+void play_bootsound() {
+    TaskHandle_t handle;
+
+    bootsound.buffer      = (uint8_t*) (boot_snd_start);
+    bootsound.size        = boot_snd_end - boot_snd_start;
+    bootsound.free_buffer = false;
+
+    xTaskCreate(&audio_player_task, "Audio player", 4096, (void*) &bootsound, 10, &handle);
+}
 
 esp_err_t i2s_test() {
     // I2S audio
@@ -108,6 +162,8 @@ esp_err_t i2s_test() {
         ESP_LOGE(TAG, "Initializing SID emulator failed");
         return res;
     }
+
+    //play_bootsound();
 
     res = bsp_amplifier_control(true);
     if (res != ESP_OK) {
@@ -1409,18 +1465,25 @@ void app_main(void) {
     bsp_init();
     display_test();
 
-    /*rvswd_test();
+    rvswd_test();
 
-    uint16_t version;
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    ch32_get_firmware_version(&version);
-    printf("Firmware version %"PRIu16"\r\n", version);
+    vTaskDelay(pdMS_TO_TICKS(200));
 
-    if (version != 2) {
+    uint16_t version = 0;
+    esp_err_t ch32fwres = ch32_get_firmware_version(&version);
+
+    if (ch32fwres != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to read ch32 firmware version %d", ch32fwres);
+    }
+
+    printf("CH32V203 firmware version %"PRIu16"\r\n", version);
+
+    if (version != 4) {
+        rvswd_test();
         while (1) {
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
-    }*/
+    }
 
     ch32_set_display_backlight(screen_brightness*5);
     ch32_set_keyboard_backlight(keyboard_brightness*5);
@@ -1452,7 +1515,7 @@ void app_main(void) {
         draw_text("SD card OK");
     }
 
-    res = sdio_test();
+    /*res = sdio_test();
     if (res != ESP_OK) {
         char text[128];
         sprintf(text, "SDIO failed:\n%s", esp_err_to_name(res));
@@ -1460,7 +1523,7 @@ void app_main(void) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     } else {
         draw_text("SDIO OK");
-    }
+    }*/
 
     //usb_host_test();
 
@@ -1540,6 +1603,7 @@ void app_main(void) {
         start_demo = false;
         while (!start_demo) {
             xSemaphoreTake(demo_semaphore, portMAX_DELAY);
+            ESP_LOGI(TAG, "Redraw!");
             if (current_key < 0) {
                 draw_test();
             } else {
@@ -1564,6 +1628,8 @@ void app_main(void) {
 
 void demo_call(bsp_input_t input, bool pressed) {
     if (input == 42 && pressed) {
+        start_demo = true;
+    } else if (input == 0x47 && pressed) {
         start_demo = true;
     } else if (input == 1 && pressed) {
         if (volume > 0x00) {
