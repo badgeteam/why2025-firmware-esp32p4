@@ -23,13 +23,13 @@ esp_err_t bsp_ch32_version(uint16_t *ver);
 esp_err_t bsp_why2025_coproc_init();
 
 // Set the display backlight value.
-esp_err_t ch32_set_display_backlight(uint16_t value);
+esp_err_t ch32_set_display_backlight(uint8_t value);
 // Set the keyboard backlight value.
-esp_err_t ch32_set_keyboard_backlight(uint16_t value);
+esp_err_t ch32_set_keyboard_backlight(uint8_t value);
 // Get the display backlight value.
-esp_err_t ch32_get_display_backlight(uint16_t *value);
+esp_err_t ch32_get_display_backlight(uint8_t *value);
 // Get the keyboard backlight value.
-esp_err_t ch32_get_keyboard_backlight(uint16_t *value);
+esp_err_t ch32_get_keyboard_backlight(uint8_t *value);
 // Enable/disable the audio amplifier.
 esp_err_t bsp_amplifier_control(bool enable);
 // Enable/disable the ESP32-C6 via RESET and BOOT pins.
