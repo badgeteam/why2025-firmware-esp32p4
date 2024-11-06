@@ -247,36 +247,6 @@ typedef enum {
     BSP_INPUT_SCROLL_LK,
 } bsp_input_t;
 
-// Types of input event.
-typedef enum {
-    // Button pressed.
-    BSP_INPUT_EVENT_PRESS,
-    // Button held down.
-    BSP_INPUT_EVENT_HOLD,
-    // Button released.
-    BSP_INPUT_EVENT_RELEASE,
-} bsp_input_event_type_t;
-
-// Input event.
-typedef struct {
-    // Input event type.
-    bsp_input_event_type_t type;
-    // Input device ID.
-    uint32_t               dev_id;
-    // Input device endpoint.
-    uint8_t                endpoint;
-    // Input interpreted as navigation.
-    bsp_input_t            nav_input;
-    // Input value.
-    bsp_input_t            input;
-    // Input interpreted as text including DEL(0x7f), BS(\b) and ENTER(\n).
-    char                   text_input;
-    // Raw input value or keyboard scan code.
-    int                    raw_input;
-    // Active modifier keys, if any.
-    uint32_t               modkeys;
-} bsp_input_event_t;
-
 /* ==== SDL2-compatible modifier keys ==== */
 // Left shift pressed.
 #define BSP_MODKEY_L_SHIFT   0x0001

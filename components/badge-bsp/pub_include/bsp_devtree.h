@@ -11,6 +11,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <list.h>
 #include <refcount.h>
 
 
@@ -120,9 +121,11 @@ typedef struct bsp_disp_driver   bsp_disp_driver_t;
 typedef struct bsp_audio_driver  bsp_audio_driver_t;
 
 // Device address.
-typedef struct bsp_addr   bsp_addr_t;
+typedef struct bsp_addr          bsp_addr_t;
 // Registered device.
-typedef struct bsp_device bsp_device_t;
+typedef struct bsp_device        bsp_device_t;
+// Device callback list entry.
+typedef struct bsp_device_cb_ent bsp_device_cb_ent_t;
 
 // Device init / deinit functions.
 typedef bool (*bsp_dev_initfun_t)(bsp_device_t *dev, uint8_t endpoint);
@@ -329,6 +332,8 @@ struct bsp_audio_driver {
 struct bsp_device {
     // BSP device ID.
     uint32_t id;
+    // Callbacks on this device.
+    dlist_t  callbacks;
     // Device tree.
     rc_t     tree;
     union {
@@ -361,7 +366,12 @@ struct bsp_device {
     };
 };
 
-
-
-// Create a copy of the device tree that can be cleaned up with `free()`.
-bsp_devtree_t *bsp_devtree_clone(bsp_devtree_t const *devtree);
+// Device callback list entry.
+struct bsp_device_cb_ent {
+    // Doubly-linked list node.
+    dlist_node_t   node;
+    // Shared pointer.
+    rc_t           rc_ptr;
+    // Callback info.
+    bsp_event_cb_t callback;
+};

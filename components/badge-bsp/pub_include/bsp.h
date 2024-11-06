@@ -3,28 +3,8 @@
 
 #pragma once
 
+#include "bsp_event.h"
 #include "bsp_input.h"
-
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-
-// Maximum possible wait time for a BSP event.
-#define BSP_EVENT_MAX_WAIT INT64_MAX
-
-// Possible types of BSP event.
-typedef enum {
-    // Input changed event.
-    BSP_EVENT_INPUT,
-} bsp_event_type_t;
-
-// Events sent by the BSP to the application.
-typedef struct {
-    // Event type.
-    bsp_event_type_t  type;
-    // Input event data.
-    bsp_input_event_t input;
-} bsp_event_t;
 
 
 
