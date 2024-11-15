@@ -3,6 +3,7 @@ set(srcs
     src/bsp/input_gpio.c
     src/bsp_color.c
     src/bsp_device.c
+    src/bsp_event.c
     src/bsp_keymap.c
     src/bsp_pax.c
     src/bsp.c
