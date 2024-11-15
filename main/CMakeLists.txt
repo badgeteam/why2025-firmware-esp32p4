@@ -1,8 +1,6 @@
 idf_component_register(
     SRCS
         "fonts/chakrapetchmedium.c"
-        "menus/apps.c"
-        "menus/root.c"
         "app.c"
         "appelf.c"
         "main.c"
@@ -17,8 +15,6 @@ idf_component_register(
     INCLUDE_DIRS
         "."
         "kbelf/include"
-    EMBED_FILES
-        "ch32_firmware.bin"
 )
 
 # target_compile_definitions(${COMPONENT_LIB} PRIVATE -DKBELF_DEBUG)

@@ -4,7 +4,6 @@
 #include "appelf.h"
 
 #include "appfs.h"
-#include "bsp.h"
 
 #include <esp_log.h>
 #include <kbelf.h>

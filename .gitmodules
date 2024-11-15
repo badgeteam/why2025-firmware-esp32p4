@@ -13,3 +13,7 @@
 [submodule "main/kbelf"]
 	path = main/kbelf
 	url = https://robotman2412@github.com/robotman2412/KiloElfLoader
+[submodule "components/esp32-component-badge-bsp"]
+	path = components/esp32-component-badge-bsp
+	url = https://github.com/badgeteam/esp32-component-badge-bsp.git
+	branch = why2025-init

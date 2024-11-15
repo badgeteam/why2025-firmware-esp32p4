@@ -1,6 +1,8 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  nicolaielectronics/tanmatsu_coprocessor: "^0.3.0"
+  lvgl/lvgl: "^9.2.0" 
+  espressif/freetype: "^2.13.0~3" 
+  espressif/libpng: "^1.6.39~1"
   ## Required IDF version
   idf:
     version: ">=4.1.0"
